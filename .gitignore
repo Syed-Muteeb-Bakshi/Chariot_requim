@@ -1,0 +1,81 @@
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+conda/
+
+# -------------------------
+# Ignore heavy backend stuff
+# -------------------------
+backend/models/
+backend/models/**
+backend/venv/
+backend/**/model_cache/
+backend/**/__pycache__/
+backend/*.log
+backend/*.sqlite
+backend/*.db
+
+# ML & Model files
+*.joblib
+*.pkl
+*.h5
+*.keras
+*.onnx
+*.bin
+*.csv
+
+# -------------------------
+# Frontend
+# -------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+.cache/
+.out/
+.next/
+
+# -------------------------
+# Environment / Secrets
+# -------------------------
+.env
+.env.*
+*.env.local
+
+# -------------------------
+# IDE / Editor
+# -------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+thumbs.db
+
+# OS files
+ehthumbs.db
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Temporary files
+*.bak
+*.tmp
+*.old
