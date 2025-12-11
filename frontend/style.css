@@ -1,0 +1,521 @@
+/* ============================================
+   VENTO AUREO - Custom Styles
+   Mature & Cozy Theme
+   ============================================ */
+
+/* Title Screen Animations */
+.title-screen {
+    animation: fadeIn 0.5s ease-in;
+}
+
+.title-text {
+    animation: slideUpFade 1s ease-out 0.3s forwards;
+}
+
+.subtitle-text {
+    animation: slideUpFade 1s ease-out 0.8s forwards;
+}
+
+.floating-symbols {
+    animation: slideUpFade 1s ease-out 1.3s forwards;
+}
+
+.floating-symbols .symbol {
+    display: inline-block;
+    margin: 0 1rem;
+    font-size: 3rem;
+    font-weight: bold;
+    animation: float 3s ease-in-out infinite;
+}
+
+.floating-symbols .symbol.jojo-symbol {
+    color: #9333ea; /* Purple */
+    text-shadow: 
+        0 0 10px rgba(147, 51, 234, 0.8),
+        0 0 20px rgba(251, 191, 36, 0.6), /* Golden edge */
+        0 0 30px rgba(236, 72, 153, 0.4), /* Pink edge */
+        2px 2px 4px rgba(0, 0, 0, 0.3);
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+}
+
+.floating-symbols .symbol.jojo-symbol:nth-child(1) {
+    animation-delay: 0s;
+    text-shadow: 
+        0 0 10px rgba(147, 51, 234, 0.8),
+        0 0 20px rgba(251, 191, 36, 0.7), /* More golden */
+        0 0 30px rgba(236, 72, 153, 0.3);
+}
+
+.floating-symbols .symbol.jojo-symbol:nth-child(2) {
+    animation-delay: 0.5s;
+    text-shadow: 
+        0 0 10px rgba(147, 51, 234, 0.8),
+        0 0 20px rgba(236, 72, 153, 0.6), /* More pink */
+        0 0 30px rgba(251, 191, 36, 0.4);
+}
+
+.floating-symbols .symbol.jojo-symbol:nth-child(3) {
+    animation-delay: 1s;
+    text-shadow: 
+        0 0 10px rgba(147, 51, 234, 0.8),
+        0 0 20px rgba(251, 191, 36, 0.5),
+        0 0 30px rgba(236, 72, 153, 0.5); /* Balanced */
+}
+
+/* Edge Symbols */
+.edge-symbols {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.edge-symbol {
+    position: absolute;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #9333ea;
+    text-shadow: 
+        0 0 8px rgba(147, 51, 234, 0.7),
+        0 0 15px rgba(251, 191, 36, 0.5),
+        0 0 25px rgba(236, 72, 153, 0.4);
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.4));
+    animation: float 3s ease-in-out infinite;
+}
+
+.edge-left-1 {
+    left: 5%;
+    top: 20%;
+    animation-delay: 0.2s;
+}
+
+.edge-left-2 {
+    left: 8%;
+    bottom: 25%;
+    animation-delay: 0.7s;
+}
+
+.edge-right-1 {
+    right: 5%;
+    top: 30%;
+    animation-delay: 1.2s;
+}
+
+.edge-right-2 {
+    right: 8%;
+    bottom: 20%;
+    animation-delay: 1.7s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-20px) rotate(5deg);
+    }
+}
+
+/* Sidebar Styles */
+.sidebar {
+    transition: transform 0.3s ease-in-out;
+}
+
+.nav-item {
+    color: #64748b;
+}
+
+.nav-item:hover {
+    background-color: #f1f5f9;
+    color: #1e293b;
+}
+
+.nav-item.active {
+    background-color: #eff6ff;
+    color: #2563eb;
+    font-weight: 500;
+}
+
+/* Stat Cards */
+.stat-card {
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: #cbd5e1;
+}
+
+/* Device Tabs */
+.device-tab {
+    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.device-tab:hover {
+    color: #2563eb;
+}
+
+.device-tab.active {
+    border-bottom-color: #2563eb;
+    color: #2563eb;
+    font-weight: 500;
+}
+
+/* Smooth Transitions */
+.section-content {
+    animation: fadeIn 0.3s ease-in;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Toast Animations */
+#toast-container > div {
+    animation: slideInRight 0.3s ease-out;
+    min-width: 250px;
+    max-width: 400px;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .title-text {
+        font-size: 3rem !important;
+    }
+    
+    .subtitle-text {
+        font-size: 1.25rem !important;
+    }
+    
+    .floating-symbols .symbol {
+        font-size: 1.5rem;
+        margin: 0 0.5rem;
+    }
+}
+
+/* Focus States for Accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Cozy Background Gradient */
+body {
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body.dark {
+    background: linear-gradient(to bottom, #020617, #0f172a) !important;
+    color: #e2e8f0 !important;
+}
+
+/* Fixed: Complete dark mode - no white elements anywhere */
+body.dark * {
+    border-color: #334155 !important;
+}
+
+/* Force all white backgrounds to dark */
+body.dark .bg-white {
+    background-color: #1e293b !important;
+}
+
+body.dark .bg-slate-50 {
+    background-color: #1e293b !important;
+}
+
+body.dark .bg-slate-100 {
+    background-color: #1e293b !important;
+}
+
+body.dark .bg-slate-800 {
+    background-color: #1e293b !important;
+}
+
+body.dark .bg-slate-900 {
+    background-color: #0f172a !important;
+}
+
+body.dark .bg-slate-950 {
+    background-color: #020617 !important;
+}
+
+/* Fixed: Ensure all input fields are dark */
+body.dark input,
+body.dark select,
+body.dark textarea {
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+    border-color: #475569 !important;
+}
+
+body.dark input::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* Fixed: Main content area */
+body.dark .main-content {
+    background-color: #020617 !important;
+}
+
+body.dark .section-content {
+    background-color: #020617 !important;
+}
+
+/* Fixed: Chart containers must be dark */
+body.dark .bg-slate-50 {
+    background-color: #1e293b !important;
+}
+
+/* Fixed: Cards and panels */
+body.dark .rounded-xl {
+    background-color: #1e293b !important;
+}
+
+/* Fixed: Sidebar */
+body.dark .sidebar {
+    background-color: #0f172a !important;
+}
+
+/* Fixed: Header */
+body.dark header {
+    background-color: #0f172a !important;
+}
+
+/* Fixed: Override any remaining light backgrounds with !important */
+body.dark [class*="bg-white"],
+body.dark [class*="bg-gray-50"],
+body.dark [class*="bg-gray-100"],
+body.dark [class*="bg-slate-50"]:not(.jojo-symbol):not(.symbol) {
+    background-color: #1e293b !important;
+}
+
+/* Fixed: Ensure all section backgrounds are dark */
+body.dark section {
+    background-color: #020617 !important;
+}
+
+/* Fixed: Toast notifications dark mode */
+body.dark #toast-container > div {
+    background-color: #1e293b !important;
+    border: 1px solid #475569 !important;
+}
+
+/* Fixed: Chart containers - ensure dark background */
+body.dark .bg-slate-50 {
+    background-color: #1e293b !important;
+}
+
+/* Fixed: All card-like elements */
+body.dark [class*="rounded-xl"],
+body.dark [class*="rounded-lg"] {
+    background-color: #1e293b !important;
+}
+
+/* Fixed: Input and form elements */
+body.dark input[type="text"],
+body.dark input[type="month"],
+body.dark select,
+body.dark textarea {
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+}
+
+/* Fixed: Dropdown suggestions */
+body.dark .city-suggest,
+body.dark #predict-suggest,
+body.dark #historic-suggest {
+    background-color: #1e293b !important;
+    border-color: #475569 !important;
+}
+
+body.dark #predict-suggest div,
+body.dark #historic-suggest div {
+    color: #e2e8f0 !important;
+}
+
+body.dark #predict-suggest div:hover,
+body.dark #historic-suggest div:hover {
+    background-color: #334155 !important;
+}
+
+/* Fixed: Force dark backgrounds on all possible white elements */
+body.dark .bg-gray-50,
+body.dark .bg-gray-100,
+body.dark .bg-gray-200 {
+    background-color: #1e293b !important;
+}
+
+/* Fixed: Chart canvas backgrounds - transparent in dark mode */
+body.dark canvas {
+    background-color: transparent !important;
+}
+
+/* Fixed: Chart canvas backgrounds */
+body.dark canvas {
+    background-color: transparent !important;
+}
+
+/* Fixed: Ensure empty states are dark */
+body.dark .empty-state,
+body.dark [class*="empty"] {
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+}
+
+/* Fixed: Prevent chart canvas from expanding infinitely */
+canvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+}
+
+/* Fixed: Chart container wrapper - prevents infinite growth */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 300px;
+    overflow: hidden;
+}
+
+.chart-container canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Fixed: Ensure chart containers don't push UI around */
+[style*="height: 300px"],
+[style*="height: 350px"] {
+    overflow: hidden;
+    position: relative;
+}
+
+/* Classy typography */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 600;
+}
+
+/* Ensure all cards are dark in dark mode */
+body.dark .rounded-xl {
+    background-color: #1e293b !important;
+}
+
+body.dark .shadow-md {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Card Hover Effects */
+.bg-white {
+    transition: box-shadow 0.3s ease;
+}
+
+.bg-white:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+/* Smooth Value Transitions */
+.stat-card > div:last-child {
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover > div:last-child {
+    transform: scale(1.05);
+}
+
+/* Map Container */
+#portable-map,
+#static-map {
+    border: 2px solid #e2e8f0;
+    transition: border-color 0.3s;
+}
+
+#portable-map:hover,
+#static-map:hover {
+    border-color: #cbd5e1;
+}
+
+/* AQI Value Animation */
+#aqi-value {
+    transition: all 0.3s ease;
+}
+
+/* Trivia text fade animation */
+#aqi-fact,
+.trivia-text {
+    transition: opacity 0.4s ease;
+}
+
+.trivia-text.fade-out {
+    opacity: 0;
+}
+
+.trivia-text.fade-in {
+    opacity: 1;
+}
+
+/* Print Styles */
+@media print {
+    .sidebar,
+    #sidebar-toggle,
+    #toast-container {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+    }
+}

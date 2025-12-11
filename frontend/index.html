@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vento Aureo – Air Quality Intelligence</title>
+    <meta name="description" content="Real-time air quality monitoring and predictive analytics">
+
+    <!-- Google Fonts - Classy Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300"
+    style="font-family: 'Inter', system-ui, -apple-system, sans-serif;">
+    <!-- Title Screen (Splash) -->
+    <div id="title-screen"
+        class="title-screen fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div class="text-center relative w-full">
+            <h1 class="title-text text-6xl md:text-8xl font-bold text-white mb-4 opacity-0">
+                Vento Aureo
+            </h1>
+            <p class="subtitle-text text-xl md:text-2xl text-slate-300 mb-8 opacity-0">
+                Air Quality Intelligence Platform
+            </p>
+            <div class="floating-symbols opacity-0">
+                <span class="symbol jojo-symbol">ゴ</span>
+                <span class="symbol jojo-symbol">ゴ</span>
+                <span class="symbol jojo-symbol">ゴ</span>
+            </div>
+            <!-- Edge symbols -->
+            <div class="edge-symbols opacity-0 absolute inset-0 pointer-events-none">
+                <span class="edge-symbol jojo-symbol edge-left-1">ゴ</span>
+                <span class="edge-symbol jojo-symbol edge-left-2">ゴ</span>
+                <span class="edge-symbol jojo-symbol edge-right-1">ゴ</span>
+                <span class="edge-symbol jojo-symbol edge-right-2">ゴ</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application (Hidden Initially) -->
+    <div id="main-app" class="hidden">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar"
+            class="sidebar fixed left-0 top-0 h-full w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-lg z-40 transform md:translate-x-0 -translate-x-full transition-transform duration-300">
+            <div class="p-6 border-b border-slate-200 dark:border-slate-700">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Vento Aureo</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Air Quality Dashboard</p>
+            </div>
+
+            <nav class="p-4 space-y-2">
+                <button
+                    class="nav-item active w-full text-left px-4 py-3 rounded-lg transition-colors text-slate-700 dark:text-slate-300"
+                    data-section="dashboard">
+                    <span class="flex items-center gap-3">
+                        <span>📊</span>
+                        <span>Dashboard</span>
+                    </span>
+                </button>
+
+                <button
+                    class="nav-item w-full text-left px-4 py-3 rounded-lg transition-colors text-slate-700 dark:text-slate-300"
+                    data-section="sensor-kit">
+                    <span class="flex items-center gap-3">
+                        <span>📡</span>
+                        <span>Sensor Kit</span>
+                    </span>
+                </button>
+
+                <button
+                    class="nav-item w-full text-left px-4 py-3 rounded-lg transition-colors text-slate-700 dark:text-slate-300"
+                    data-section="predictive">
+                    <span class="flex items-center gap-3">
+                        <span>🔮</span>
+                        <span>Predictive AQI</span>
+                    </span>
+                </button>
+
+                <button
+                    class="nav-item w-full text-left px-4 py-3 rounded-lg transition-colors text-slate-700 dark:text-slate-300"
+                    data-section="historic">
+                    <span class="flex items-center gap-3">
+                        <span>📈</span>
+                        <span>Historic Charts</span>
+                    </span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Sidebar Overlay (Mobile) -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+
+        <!-- Main Content Area -->
+        <main class="main-content ml-0 md:ml-64 transition-all duration-300 min-h-screen bg-slate-50 dark:bg-slate-950">
+            <!-- Top Bar -->
+            <header
+                class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 shadow-sm">
+                <div class="flex items-center justify-between p-4">
+                    <button id="sidebar-toggle"
+                        class="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                        <span class="text-2xl">☰</span>
+                    </button>
+                    <h2 id="page-title" class="text-xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</h2>
+                    <div class="flex items-center gap-4">
+                        <button id="theme-toggle"
+                            class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            aria-label="Toggle theme">
+                            <span id="theme-icon" class="text-xl">🌙</span>
+                        </button>
+                        <div id="connection-status" class="flex items-center gap-2 text-sm">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            <span class="text-slate-600 dark:text-slate-400">Connected</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section id="section-dashboard" class="section-content p-6 bg-slate-50 dark:bg-slate-950">
+                <div class="max-w-7xl mx-auto space-y-6">
+                    <!-- Current Location AQI Card -->
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Current Location AQI
+                        </h3>
+                        <div id="current-aqi" class="flex items-center gap-6">
+                            <div class="text-center">
+                                <div id="aqi-value" class="text-5xl font-bold text-slate-900 dark:text-slate-100 mb-2">—
+                                </div>
+                                <div id="aqi-category" class="text-sm text-slate-600 dark:text-slate-400">Loading...
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <div id="aqi-details" class="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                                    <div>Location: <span id="current-location">Detecting...</span></div>
+                                    <div>PM2.5: <span id="current-pm25">—</span> µg/m³</div>
+                                    <div>PM10: <span id="current-pm10">—</span> µg/m³</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- City Search & AQI Classification -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- City Search -->
+                        <div
+                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Search City AQI
+                            </h3>
+                            <div class="flex gap-2 mb-4">
+                                <input type="text" id="city-search-input" placeholder="Enter city name..."
+                                    class="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400" />
+                                <button id="city-search-btn"
+                                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                    Search
+                                </button>
+                            </div>
+                            <div id="city-search-result" class="text-sm text-slate-600 dark:text-slate-400">
+                                Enter a city to view its AQI.
+                            </div>
+                        </div>
+
+                        <!-- AQI Classification -->
+                        <div
+                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">AQI Categories
+                            </h3>
+                            <div class="space-y-2">
+                                <div
+                                    class="flex items-center justify-between p-2 rounded bg-green-50 dark:bg-green-900/30">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-slate-100">0-50</span>
+                                    <span class="text-sm text-green-700 dark:text-green-400 font-semibold">Good</span>
+                                </div>
+                                <div
+                                    class="flex items-center justify-between p-2 rounded bg-yellow-50 dark:bg-yellow-900/30">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-slate-100">51-100</span>
+                                    <span
+                                        class="text-sm text-yellow-700 dark:text-yellow-400 font-semibold">Moderate</span>
+                                </div>
+                                <div
+                                    class="flex items-center justify-between p-2 rounded bg-orange-50 dark:bg-orange-900/30">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-slate-100">101-150</span>
+                                    <span class="text-sm text-orange-700 dark:text-orange-400 font-semibold">Unhealthy
+                                        (Sensitive)</span>
+                                </div>
+                                <div class="flex items-center justify-between p-2 rounded bg-red-50 dark:bg-red-900/30">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-slate-100">151-200</span>
+                                    <span class="text-sm text-red-700 dark:text-red-400 font-semibold">Unhealthy</span>
+                                </div>
+                                <div
+                                    class="flex items-center justify-between p-2 rounded bg-purple-50 dark:bg-purple-900/30">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-slate-100">201-300</span>
+                                    <span class="text-sm text-purple-700 dark:text-purple-400 font-semibold">Very
+                                        Unhealthy</span>
+                                </div>
+                                <div class="flex items-center justify-between p-2 rounded bg-gray-200 dark:bg-gray-800">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-slate-100">300+</span>
+                                    <span
+                                        class="text-sm text-gray-700 dark:text-gray-300 font-semibold">Hazardous</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AQI Facts -->
+                    <div
+                        class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-md p-6 border border-blue-100 dark:border-slate-700">
+                        <h3
+                            class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                            <span>💡</span>
+                            <span>Did You Know?</span>
+                        </h3>
+                        <p id="aqi-fact" class="trivia-text text-slate-700 dark:text-slate-300">Loading interesting facts...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sensor Kit Section -->
+            <section id="section-sensor-kit" class="section-content hidden p-6 bg-slate-50 dark:bg-slate-950">
+                <div class="max-w-7xl mx-auto space-y-6">
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">IoT Sensor Kits</h3>
+
+                        <!-- Device Tabs -->
+                        <div class="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
+                            <button
+                                class="device-tab active px-4 py-2 border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 font-medium"
+                                data-device="portable">
+                                Portable Sensor
+                            </button>
+                            <button
+                                class="device-tab px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                                data-device="static">
+                                Static Station
+                            </button>
+                        </div>
+
+                        <!-- Portable Device View -->
+                        <div id="device-portable" class="device-view">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">Temperature</div>
+                                    <div id="portable-temp"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">°C</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">Humidity</div>
+                                    <div id="portable-humidity"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">%</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">PM2.5</div>
+                                    <div id="portable-pm25"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">µg/m³</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">PM10</div>
+                                    <div id="portable-pm10"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">µg/m³</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">VOC</div>
+                                    <div id="portable-voc"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">ppm</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">Pressure</div>
+                                    <div id="portable-pressure"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">hPa</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">MQ135</div>
+                                    <div id="portable-mq135"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">raw</div>
+                                </div>
+                            </div>
+
+                            <!-- Charts - Fixed Height Containers -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div
+                                    class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Temperature
+                                        Trend</h4>
+                                    <div class="relative" style="height: 300px; width: 100%;">
+                                        <canvas id="portable-temp-chart"></canvas>
+                                    </div>
+                                </div>
+                                <div
+                                    class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">PM Levels
+                                    </h4>
+                                    <div class="relative" style="height: 300px; width: 100%;">
+                                        <canvas id="portable-pm-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Map -->
+                            <div
+                                class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Device Location
+                                </h4>
+                                <div id="portable-map" class="w-full h-64 rounded-lg"></div>
+                            </div>
+                        </div>
+
+                        <!-- Static Device View -->
+                        <div id="device-static" class="device-view hidden">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">Temperature</div>
+                                    <div id="static-temp" class="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                                        —</div>
+                                    <div class="text-xs text-slate-500">°C</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">Humidity</div>
+                                    <div id="static-humidity"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">%</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">CO₂</div>
+                                    <div id="static-co2" class="text-2xl font-bold text-slate-900 dark:text-slate-100">—
+                                    </div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">ppm</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">PM2.5</div>
+                                    <div id="static-pm25" class="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                                        —</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">µg/m³</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">PM10</div>
+                                    <div id="static-pm10" class="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                                        —</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">µg/m³</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">VOC</div>
+                                    <div id="static-voc" class="text-2xl font-bold text-slate-900 dark:text-slate-100">—
+                                    </div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">ppm</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">Pressure</div>
+                                    <div id="static-pressure"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">hPa</div>
+                                </div>
+                                <div
+                                    class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <div class="text-sm text-slate-600 dark:text-slate-400 mb-1">MQ135</div>
+                                    <div id="static-mq135"
+                                        class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-500">raw</div>
+                                </div>
+                            </div>
+
+                            <!-- Charts - Fixed Height Containers -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div
+                                    class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Temperature
+                                        Trend</h4>
+                                    <div class="relative" style="height: 300px; width: 100%;">
+                                        <canvas id="static-temp-chart"></canvas>
+                                    </div>
+                                </div>
+                                <div
+                                    class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                    <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Gas & PM
+                                        Levels</h4>
+                                    <div class="relative" style="height: 300px; width: 100%;">
+                                        <canvas id="static-gas-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Map -->
+                            <div
+                                class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Device Location
+                                </h4>
+                                <div id="static-map" class="w-full h-64 rounded-lg"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick AQI Prediction Card -->
+                    <div
+                        class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-md p-6 border border-blue-100 dark:border-slate-700 mt-6">
+                        <h3
+                            class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                            <span>🔮</span>
+                            <span>Quick AQI Prediction</span>
+                        </h3>
+                        <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Get AI-powered AQI predictions based on current sensor readings
+                        </p>
+                        <div class="flex gap-3 flex-wrap">
+                            <button id="predict-current-device"
+                                class="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
+                                Predict Current Device AQI
+                            </button>
+                            <button onclick="document.querySelector('[data-section=predictive]').click()"
+                                class="px-6 py-2 bg-slate-600 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                View Full Predictions
+                            </button>
+                        </div>
+                        <div id="quick-prediction-result" class="mt-4 hidden">
+                            <div
+                                class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Predicted AQI</div>
+                                        <div id="quick-pred-aqi"
+                                            class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Category</div>
+                                        <div id="quick-pred-category"
+                                            class="text-sm font-medium text-slate-700 dark:text-slate-300">—</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Confidence</div>
+                                        <div id="quick-pred-confidence"
+                                            class="text-sm font-medium text-slate-700 dark:text-slate-300">—</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Status</div>
+                                        <div id="quick-pred-status"
+                                            class="text-sm font-medium text-slate-700 dark:text-slate-300">—</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Predictive AQI Section -->
+            <section id="section-predictive" class="section-content hidden p-6 bg-slate-50 dark:bg-slate-950">
+                <div class="max-w-7xl mx-auto space-y-6">
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Predictive AQI
+                            Analysis</h3>
+                        <div class="flex gap-4 mb-4 flex-wrap items-center">
+                            <select id="predict-city"
+                                class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"></select>
+                            <div class="relative flex-1 min-w-[200px]">
+                                <input id="predict-search" type="text" placeholder="Search city..."
+                                    class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400">
+                                <div id="predict-suggest"
+                                    class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg hidden max-h-60 overflow-auto">
+                                </div>
+                            </div>
+                            <select id="predict-horizon"
+                                class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                <option value="1">1 month</option>
+                                <option value="3">3 months</option>
+                                <option value="6">6 months</option>
+                                <option value="12" selected>12 months</option>
+                                <option value="24">24 months</option>
+                                <option value="60">60 months</option>
+                            </select>
+                            <button id="predict-generate"
+                                class="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
+                                Generate Forecast
+                            </button>
+                        </div>
+                        <div
+                            class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                            <div class="relative" style="height: 350px; width: 100%;">
+                                <canvas id="predict-chart"></canvas>
+                            </div>
+                        </div>
+                        <div id="predict-stats" class="mt-4 text-sm text-slate-600 dark:text-slate-400"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <div
+                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Device Forecasts &
+                                Short-Term AQI</h3>
+                            <div class="flex gap-3 flex-wrap mb-4">
+                                <select id="forecast-device"
+                                    class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                    <option value="PORTABLE-01">PORTABLE-01 — Portable Sensor</option>
+                                    <option value="Vento-Station-01">Vento-Station-01 — Static Station</option>
+                                </select>
+                                <select id="forecast-horizon"
+                                    class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                    <option value="1">24 hours</option>
+                                    <option value="7" selected>7 days</option>
+                                    <option value="21">3 weeks</option>
+                                </select>
+                                <button id="forecast-refresh"
+                                    class="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
+                                    Generate Forecasts
+                                </button>
+                            </div>
+                            <div id="forecast-summary"
+                                class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-center text-sm text-slate-600 dark:text-slate-300">
+                                <div
+                                    class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
+                                    <div class="uppercase text-xs tracking-wide text-slate-500 dark:text-slate-400">AQI
+                                        Tomorrow</div>
+                                    <div id="forecast-tomorrow"
+                                        class="text-2xl font-semibold text-slate-900 dark:text-white mt-1">—</div>
+                                </div>
+                                <div
+                                    class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
+                                    <div class="uppercase text-xs tracking-wide text-slate-500 dark:text-slate-400">Next
+                                        7 Days Avg</div>
+                                    <div id="forecast-week"
+                                        class="text-2xl font-semibold text-slate-900 dark:text-white mt-1">—</div>
+                                </div>
+                                <div
+                                    class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800">
+                                    <div class="uppercase text-xs tracking-wide text-slate-500 dark:text-slate-400">Next
+                                        3 Weeks Avg</div>
+                                    <div id="forecast-three-weeks"
+                                        class="text-2xl font-semibold text-slate-900 dark:text-white mt-1">—</div>
+                                </div>
+                            </div>
+                            <div
+                                class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                                <div class="relative" style="height: 350px; width: 100%;">
+                                    <canvas id="forecast-comparison-chart"></canvas>
+                                </div>
+                            </div>
+                            <div id="forecast-status" class="mt-4 text-sm text-slate-600 dark:text-slate-400"></div>
+                        </div>
+
+                        <!-- Manual AQI Prediction (ML) card removed per new backend contract -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Historic Charts Section -->
+            <section id="section-historic" class="section-content hidden p-6 bg-slate-50 dark:bg-slate-950">
+                <div class="max-w-7xl mx-auto space-y-6">
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Historic AQI Data</h3>
+                        <div class="flex gap-4 mb-4 flex-wrap items-center">
+                            <select id="historic-city"
+                                class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"></select>
+                            <div class="relative flex-1 min-w-[200px]">
+                                <input id="historic-search" type="text" placeholder="Search city..."
+                                    class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400">
+                                <div id="historic-suggest"
+                                    class="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg hidden max-h-60 overflow-auto">
+                                </div>
+                            </div>
+                            <input type="month" id="historic-from" max="2024-11"
+                                class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                            <input type="month" id="historic-to" max="2024-11"
+                                class="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                            <button id="historic-apply"
+                                class="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
+                                Apply
+                            </button>
+                        </div>
+                        <div
+                            class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                            <div class="relative" style="height: 350px; width: 100%;">
+                                <canvas id="historic-chart"></canvas>
+                            </div>
+                        </div>
+                        <div id="historic-stats" class="mt-4 text-sm text-slate-600 dark:text-slate-400"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Scripts -->
+    <script src="app-helpers.js?v=4"></script>
+    <script src="app.js?v=4"></script>
+</body>
+
+</html>

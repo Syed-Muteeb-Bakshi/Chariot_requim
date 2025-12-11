@@ -1,0 +1,47 @@
+[
+    {
+        "city": "Delhi",
+        "co2": 410,
+        "o3": 0.04,
+        "voc": 0.5,
+        "pm25": 32,
+        "temperature": 29,
+        "timestamp": "2025-11-03 17:05:17"
+    },
+    {
+        "city": "Delhi",
+        "co2": 410,
+        "o3": 0.04,
+        "voc": 0.5,
+        "pm25": 32,
+        "temperature": 29,
+        "timestamp": "2025-11-03 17:09:28"
+    },
+    {
+        "city": "Delhi",
+        "co2": 412.5,
+        "o3": 0.03,
+        "voc": 0.45,
+        "pm25": 35,
+        "temperature": 28,
+        "timestamp": "2025-11-06 17:57:33"
+    },
+    {
+        "city": "Mumbai",
+        "co2": 389.5,
+        "o3": 0.04,
+        "voc": 0.41,
+        "pm25": 35,
+        "temperature": 31,
+        "timestamp": "2025-11-06 17:57:43"
+    },
+    {
+        "city": "Bangalore",
+        "co2": 460.3,
+        "o3": 0.01,
+        "voc": 0.29,
+        "pm25": 15,
+        "temperature": 24,
+        "timestamp": "2025-11-06 17:57:43"
+    }
+]

@@ -1,0 +1,961 @@
+from pathlib import Path
+
+html = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Vento Aureo — Air Quality Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg: #0e1117;
+      --panel: #14171b;
+      --panel-2: #1b1f23;
+      --muted: #9aa0a6;
+      --accent: #1abc9c;
+      --accent2: #f39c12;
+      --text: #e6eef1;
+      --card-shadow: rgba(0,0,0,0.45);
+      --select-bg: rgba(255,255,255,0.03);
+      --select-border: rgba(255,255,255,0.06);
+    }
+    [data-theme="light"]{
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-2: #f1f3f5;
+      --muted: #555;
+      --accent: #0a8f6a;
+      --accent2: #d08a07;
+      --text: #111;
+      --card-shadow: rgba(0,0,0,0.08);
+      --select-bg: rgba(0,0,0,0.02);
+      --select-border: rgba(0,0,0,0.08);
+    }
+
+    html,body{height:100%; margin:0; font-family: "Segoe UI", Roboto, system-ui, -apple-system, "Helvetica Neue", Arial; background:var(--bg); color:var(--text);}
+    .container{max-width:1200px; margin:18px auto; padding:18px;}
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;}
+    h1{margin:0; font-size:20px;}
+    .subtitle{color:var(--muted); font-size:13px; margin-top:4px;}
+    .controls-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .card{background:linear-gradient(180deg, var(--panel), var(--panel-2)); padding:14px; border-radius:12px; box-shadow: 0 6px 20px var(--card-shadow); border:1px solid rgba(255,255,255,0.02);}
+    select,input,button{background:var(--select-bg); color:var(--text); border:1px solid var(--select-border); padding:8px 10px; border-radius:8px; outline:none; font-size:14px;}
+    select::-ms-expand{display:none;}
+    input::placeholder{color:var(--muted);}
+    button{background:var(--accent); color:#fff; border:none; cursor:pointer;}
+    button.secondary{background:transparent; border:1px solid var(--select-border); color:var(--text);}
+    button.ghost{background:transparent; border:0; color:var(--muted); cursor:pointer;}
+    .grid{display:grid; grid-template-columns: 1fr 420px; gap:18px; align-items:start;}
+    .row-eq{display:flex; gap:12px;}
+    .fullwidth{grid-column:1 / -1}
+    .section-title{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;}
+    .small-muted{color:var(--muted); font-size:13px;}
+    .chart-wrap{padding:8px; border-radius:10px; background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); min-height:240px;}
+    .live-box{display:flex; flex-direction:column; gap:6px; text-align:left; min-height:100px; justify-content:center;}
+    .live-box h3{margin:0; color:var(--accent); font-size:16px;}
+    .trivia{padding:12px; border-radius:10px; background:linear-gradient(180deg, rgba(0,0,0,0.03), transparent); color:var(--text); transition: opacity .5s ease; min-height:100px;}
+    .muted-box{background:rgba(255,255,255,0.02); padding:10px; border-radius:10px;}
+    .center{display:flex; align-items:center; justify-content:center;}
+    .toggle {display:inline-flex; gap:6px; align-items:center;}
+    .toggle button {padding:6px 8px; border-radius:8px; font-size:13px;}
+    .aqi-pill {display:inline-block; padding:10px 12px; border-radius:10px; color:#0b0b0b; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,0.25);}
+    .aqi-grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(100px,1fr)); gap:10px; align-items:stretch;}
+    .hint {font-size:12px; color:var(--muted); margin-top:8px;}
+    .search-input{min-width:200px;}
+    .select-visible {background: rgba(0,0,0,0.05); color:var(--text);}
+    .controls-inline{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+    .city-suggest {position:absolute; background:var(--panel); border:1px solid var(--select-border); margin-top:4px; width:calc(100% - 24px); z-index:40; border-radius:8px; max-height:220px; overflow:auto;}
+    .city-suggest div{padding:8px; cursor:pointer;}
+    .city-suggest div:hover{background:rgba(255,255,255,0.02);}
+    .global-aqi-grid {display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:8px;}
+    .error {color:#ff7b7b}
+    @media (max-width:1100px){
+      .grid{grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>🌍 Vento Aureo — Air Quality Dashboard</h1>
+        <div class="subtitle">Forecast, real-time AQI & air-health tips</div>
+      </div>
+      <div class="controls-row">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input id="themeToggle" type="checkbox" style="width:18px;height:18px;" /> <span class="small-muted">Light</span>
+        </label>
+        <button id="detectBtn" title="Detect my location and set default city" class="secondary">Use my location</button>
+        <button id="globalFetch" class="secondary" title="Fetch global snapshot for many cities">Global AQI Snapshot</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- LEFT COLUMN: Historic + Details + Short-term below -->
+      <div>
+        <!-- Historic -->
+        <section class="card">
+          <div class="section-title">
+            <div>
+              <strong>Historic Data</strong>
+              <div class="small-muted">Monthly historical trend (data available until Nov 2024)</div>
+            </div>
+            <div class="small-muted">Monthly</div>
+          </div>
+
+          <div class="controls-inline" style="margin-bottom:10px; position:relative;">
+            <select id="historicCity" class="search-input"></select>
+            <div style="position:relative;">
+              <input id="historicSearch" placeholder="Search city (historic)..." />
+              <div id="historicSuggest" class="city-suggest" style="display:none;"></div>
+            </div>
+            <button id="historicShow" class="secondary">Show</button>
+
+            <div style="margin-left:auto;" class="toggle">
+              <span class="small-muted">Chart:</span>
+              <button id="historicToggleLine" class="ghost">Line</button>
+              <button id="historicToggleBar" class="ghost">Bar</button>
+              <button id="historicToggleArea" class="ghost">Area</button>
+              <button id="historicToggleCombo" class="ghost">Combo</button>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="historicChart"></canvas>
+          </div>
+          <div id="historicStats" style="margin-top:10px" class="small-muted"></div>
+        </section>
+
+        <!-- Historic details -->
+        <section class="card" style="margin-top:14px;">
+          <div class="section-title">
+            <div><strong>Historic Details</strong><div class="small-muted">Select date range (historical data ends Nov 2024)</div></div>
+            <div class="small-muted">Details</div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <label class="small-muted">From</label>
+            <input id="historicFrom" type="month" max="2024-11" />
+            <label class="small-muted">To</label>
+            <input id="historicTo" type="month" max="2024-11" />
+            <button id="historicApply">Apply</button>
+          </div>
+          <div class="hint">* Historical data available till Nov 2024</div>
+        </section>
+
+        <!-- Short-term (separate card) -->
+        <section class="card" style="margin-top:14px;">
+          <div class="section-title">
+            <div>
+              <strong>Short-Term Forecast</strong>
+              <div class="small-muted">Quick short-range forecast (interpolated from monthly model)</div>
+            </div>
+            <div class="small-muted">1–14 days</div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px; position:relative;">
+            <select id="shortCity" class="search-input"></select>
+            <div style="position:relative;">
+              <input id="shortSearch" placeholder="Search city (short-term)..." />
+              <div id="shortSuggest" class="city-suggest" style="display:none;"></div>
+            </div>
+            <select id="shortDays">
+              <option value="1">1 day</option>
+              <option value="3">3 days</option>
+              <option value="7" selected>7 days</option>
+              <option value="14">14 days</option>
+            </select>
+            <button id="shortGenerate">Generate short-term</button>
+
+            <div style="margin-left:auto;" class="toggle">
+              <span class="small-muted">Chart:</span>
+              <button id="shortToggleLine" class="ghost">Line</button>
+              <button id="shortToggleBar" class="ghost">Bar</button>
+              <button id="shortToggleArea" class="ghost">Area</button>
+              <button id="shortToggleCombo" class="ghost">Combo</button>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="shortChart"></canvas>
+          </div>
+          <div id="shortStats" class="small-muted" style="margin-top:10px"></div>
+        </section>
+      </div>
+
+      <!-- RIGHT COLUMN: Prediction + Live + Trivia + AQI categories -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <section class="card">
+          <div class="section-title">
+            <div>
+              <strong>Prediction</strong>
+              <div class="small-muted">AI long-range forecast (months)</div>
+            </div>
+            <div class="small-muted">Future</div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px; position:relative;">
+            <select id="predictCity" class="search-input"></select>
+            <div style="position:relative;">
+              <input id="predictSearch" placeholder="Search city (prediction)..." />
+              <div id="predictSuggest" class="city-suggest" style="display:none;"></div>
+            </div>
+            <select id="predictHorizon">
+              <option value="1">1 mo</option>
+              <option value="3">3 mo</option>
+              <option value="6">6 mo</option>
+              <option value="12" selected>12 mo</option>
+              <option value="24">24 mo</option>
+              <option value="60">60 mo</option>
+            </select>
+            <button id="predictGenerate">Generate</button>
+
+            <div style="margin-left:auto;" class="toggle">
+              <span class="small-muted">Chart:</span>
+              <button id="predictToggleLine" class="ghost">Line</button>
+              <button id="predictToggleBar" class="ghost">Bar</button>
+              <button id="predictToggleArea" class="ghost">Area</button>
+              <button id="predictToggleCombo" class="ghost">Combo</button>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="predictChart"></canvas>
+          </div>
+          <div id="predictStats" style="margin-top:10px" class="small-muted"></div>
+        </section>
+
+        <!-- Live AQI -->
+        <div class="card" id="liveCard">
+          <div class="section-title" style="margin-bottom:8px">
+            <div><strong>Real-Time AQI</strong><div class="small-muted">Your detected area (or fallback)</div></div>
+            <div class="small-muted" id="liveBadge"></div>
+          </div>
+          <div class="live-box" id="liveBoxContent">
+            <div class="small-muted">Loading current AQI…</div>
+          </div>
+        </div>
+
+        <!-- Trivia -->
+        <div class="card trivia" id="triviaCard" aria-live="polite">
+          <h4 style="margin:0;color:var(--accent)">Did you know?</h4>
+          <p id="triviaText" class="small-muted" style="margin-top:8px;">Loading facts…</p>
+        </div>
+        
+        <!-- City AQI Lookup -->
+<div class="card" id="lookupCard" style="margin-top:12px;">
+  <div class="section-title">
+    <div>
+      <strong>City AQI Lookup</strong>
+      <div class="small-muted">Check real-time AQI for any supported city</div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; position:relative;">
+    <div style="position:relative; flex:1; min-width:180px;">
+      <input id="lookupSearch" placeholder="Search city..." class="search-input" />
+      <div id="lookupSuggest" class="city-suggest" style="display:none;"></div>
+    </div>
+      <button id="lookupBtn">Check</button>
+    </div>
+
+    <div id="lookupResult" class="small-muted" style="margin-top:10px;">
+      Enter a city to view its AQI.
+    </div>
+  </div>
+
+        <!-- AQI categories centered -->
+        <div class="card center" style="padding:18px;">
+          <div style="width:100%;">
+            <h4 style="margin:0 0 8px 0; text-align:center;">AQI categories</h4>
+            <div class="aqi-grid" style="margin-top:10px;">
+              <div class="center" style="flex-direction:column;"><div class="aqi-pill" style="background:#2ecc71">0–50<br><small>Good</small></div></div>
+              <div class="center" style="flex-direction:column;"><div class="aqi-pill" style="background:#f1c40f">51–100<br><small>Moderate</small></div></div>
+              <div class="center" style="flex-direction:column;"><div class="aqi-pill" style="background:#f39c12">101–150<br><small>Unhealthy (Sensitive)</small></div></div>
+              <div class="center" style="flex-direction:column;"><div class="aqi-pill" style="background:#e67e22">151–200<br><small>Unhealthy</small></div></div>
+              <div class="center" style="flex-direction:column;"><div class="aqi-pill" style="background:#9b59b6">201–300<br><small>Very Unhealthy</small></div></div>
+              <div class="center" style="flex-direction:column;"><div class="aqi-pill" style="background:#95a5a6;color:#fff">300+<br><small>Hazardous</small></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- fullwidth footer note if needed -->
+      <div class="card fullwidth">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap;">
+          <div class="small-muted">Design note: Historic data ends Nov 2024 — future forecasts are model outputs (approximate).</div>
+        </div>
+      </div>
+
+      <!-- Global AQI display (inserted as modal-like card below) -->
+      <div id="globalPanel" class="card fullwidth" style="display:none; margin-top:10px;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div><strong>Global AQI snapshot (sample)</strong> <div class="small-muted">Snapshot for many cities (may be limited)</div></div>
+          <div><button id="globalClose" class="secondary">Close</button></div>
+        </div>
+        <div id="globalGrid" style="margin-top:12px;" class="global-aqi-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // -------------------------
+  // Configuration (endpoints)
+  // -------------------------
+  const API = {
+    listCities: '/api/list_cities',
+    historic: (city, query='') => `/api/get_forecast/${encodeURIComponent(city)}${query}`,
+    hybrid: (city, months=12) => `/api/hybrid_forecast/${encodeURIComponent(city)}?horizon=${months}`,
+    liveCoords: (lat, lon) => `/api/live_aqi_coords?lat=${lat}&lon=${lon}`,
+    trivia: '/api/trivia',
+    cityAqi: (city) => `/api/city_aqi/${encodeURIComponent(city)}`,
+    globalAqi: '/api/global_aqi',
+    shortTerm: (city, base) => `/api/short_term/${encodeURIComponent(city)}?base=${base}`
+  };
+
+  // -------------------------
+  // State
+  // -------------------------
+  let cities = [];
+  let historicChart = null, predictChart = null, shortChart = null;
+  let historicChartType = 'line', predictChartType = 'line', shortChartType='line';
+  let triviaPool = [], triviaTimer = null;
+
+  // -------------------------
+  // Helpers
+  // -------------------------
+  const q = s => document.querySelector(s);
+  function showError(el, msg){ el.innerHTML = `<span class="error">${msg}</span>`; }
+  function formatMonthLabel(iso){ try{ const d = new Date(iso); return d.toLocaleString(undefined, {month:'short', year:'numeric'}); } catch(e){ return iso; } }
+  function formatDayLabel(iso){ try{ const d = new Date(iso); return d.toLocaleDateString(); } catch(e){ return iso; } }
+  function avg(arr){ if(!arr.length) return 'N/A'; return (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2); }
+
+  // set default city behavior: location detection preferred
+  const DEFAULT_CITY_BEHAVIOR = 'location-first'; // user chose location-based
+
+  // -------------------------
+  // City list / Populate + Suggest helpers
+  // -------------------------
+  async function loadCities(){
+    try{
+      const res = await fetch(API.listCities);
+      const j = await res.json();
+      cities = Array.isArray(j) ? j : (typeof j === 'object' ? Object.keys(j) : []);
+    }catch(e){
+      console.warn('Failed to load cities', e);
+      cities = [];
+    }
+    const opts = (cities.length? cities.map(c=>`<option>${c}</option>`).join('') : '<option>No cities</option>');
+    q('#historicCity').innerHTML = opts;
+    q('#shortCity').innerHTML = opts;
+    q('#predictCity').innerHTML = opts;
+  }
+
+  function attachSuggest(inputEl, suggestEl, setterCallback){
+    inputEl.addEventListener('input', ()=> {
+      const v = inputEl.value.trim().toLowerCase();
+      if(!v){ suggestEl.style.display='none'; return; }
+      const matches = cities.filter(c => c.toLowerCase().includes(v)).slice(0,12);
+      if(!matches.length){ suggestEl.style.display='none'; return; }
+      suggestEl.innerHTML = matches.map(m=>`<div data-val="${m}">${m}</div>`).join('');
+      suggestEl.style.display = 'block';
+      suggestEl.querySelectorAll('div').forEach(el=>{
+        el.addEventListener('click', ()=> {
+          const val = el.getAttribute('data-val');
+          inputEl.value = val;
+          suggestEl.style.display = 'none';
+          if(typeof setterCallback === 'function') setterCallback(val);
+        });
+      });
+    });
+    document.addEventListener('click', (ev)=>{
+      if(!inputEl.contains(ev.target) && !suggestEl.contains(ev.target)) suggestEl.style.display='none';
+    });
+  }
+
+  // -------------------------
+  // HISTORIC (monthly) load + render
+  // -------------------------
+  async function loadHistoric(city, start_date='', end_date=''){
+    q('#historicStats').textContent = 'Loading...';
+    try{
+      const queryParts = [];
+      if(start_date) queryParts.push(`start_date=${encodeURIComponent(start_date)}`);
+      if(end_date) queryParts.push(`end_date=${encodeURIComponent(end_date)}`);
+      const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+      const res = await fetch(API.historic(city, query));
+      const data = await res.json();
+      if(res.status !== 200 || data.error){
+        showError(q('#historicStats'), data.error || 'Failed to load historic data');
+        renderHistoricChart([], city);
+        return;
+      }
+      const forecast = data.forecast || [];
+      renderHistoricChart(forecast, city);
+      q('#historicStats').textContent = `${city} · points: ${forecast.length} · Avg: ${avg(forecast.map(d=>Number(d.yhat ?? d.predicted_aqi ?? 0)))}`;
+    }catch(err){
+      console.error(err);
+      showError(q('#historicStats'), 'Network error while loading historic data');
+    }
+  }
+
+  function renderHistoricChart(forecast, city){
+    const ctx = q('#historicChart').getContext('2d');
+    const labels = (forecast||[]).map(d=>d.ds || d.date);
+    const dataPoints = (forecast||[]).map(d=>Number(d.yhat ?? d.predicted_aqi ?? NaN));
+    if(historicChart) historicChart.destroy();
+
+    // choose dataset appearance based on type
+    const isArea = historicChartType === 'area';
+    const isCombo = historicChartType === 'combo';
+    const cfg = {
+      type: historicChartType === 'bar' ? 'bar' : 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: `${city}`,
+          data: dataPoints,
+          borderColor:getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#1abc9c',
+          backgroundColor: historicChartType==='bar' ? (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#1abc9c') : (isArea ? 'rgba(26, 188, 156, 0.15)' : 'rgba(26,188,156,0.08)'),
+          fill: isArea,
+          pointRadius: isCombo ? 3 : 0,
+          borderWidth:2,
+          tension:0.25
+        }]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text') || '#fff'}}},
+        scales:{ x:{ ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--muted')}}, y:{ ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--muted')}}}
+      }
+    };
+    historicChart = new Chart(ctx, cfg);
+  }
+
+  // -------------------------
+  // PREDICTION (months) load + render
+  // -------------------------
+  async function loadPrediction(city, horizonMonths=12){
+    q('#predictStats').textContent = 'Loading...';
+    try{
+      const res = await fetch(API.hybrid(city, horizonMonths));
+      const data = await res.json();
+      if(res.status !== 200 || data.error){
+        showError(q('#predictStats'), data.error || 'Failed to load prediction');
+        renderPredictChart([], city);
+        return;
+      }
+      const forecast = data.forecast || [];
+      renderPredictChart(forecast, city);
+      q('#predictStats').textContent = `${city} · Horizon: ${data.forecast_horizon_months || horizonMonths} months · Avg: ${avg(forecast.map(d=>Number(d.predicted_aqi ?? d.yhat ?? 0)))}`;
+    }catch(err){
+      console.error(err);
+      showError(q('#predictStats'), 'Network error while loading prediction');
+    }
+  }
+
+  function renderPredictChart(forecast, city){
+    const ctx = q('#predictChart').getContext('2d');
+    const labels = (forecast||[]).map(d=>d.date || d.ds);
+    const values = (forecast||[]).map(d=>Number(d.predicted_aqi ?? d.yhat ?? NaN));
+    if(predictChart) predictChart.destroy();
+
+    const isArea = predictChartType === 'area';
+    const isCombo = predictChartType === 'combo';
+    const cfg = {
+      type: predictChartType === 'bar' ? 'bar' : 'line',
+      data: {
+        labels,
+        datasets: [{
+          label:`Forecast — ${city}`,
+          data: values,
+          borderColor:getComputedStyle(document.documentElement).getPropertyValue('--accent2')||'#f39c12',
+          backgroundColor: predictChartType==='bar' ? (getComputedStyle(document.documentElement).getPropertyValue('--accent2')||'#f39c12') : (isArea ? 'rgba(243,156,18,0.15)' : 'rgba(243,156,18,0.08)'),
+          fill: isArea,
+          pointRadius: isCombo ? 3 : 0,
+          borderWidth:2,
+          tension:0.25
+        }]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text') || '#fff'}}},
+        scales:{ x:{ ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--muted')}}, y:{ ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--muted')}}}
+      }
+    };
+    predictChart = new Chart(ctx, cfg);
+  }
+
+  // -------------------------
+  // SHORT-TERM (days) approx via monthly -> daily interpolation
+  // with minor jitter so values are not flat when interpolation uses single point
+  // -------------------------
+  async function generateShortTerm(city, days=7){
+    q('#shortStats').textContent = 'Loading...';
+    try{
+      // Try backend short-term endpoint if available (preferred)
+      try{
+        const resST = await fetch(API.shortTerm(city, 150));
+        if(resST.ok){
+          const arr = await resST.json();
+          if(Array.isArray(arr) && arr.length){
+            renderShortChart(arr.slice(0, days), city);
+            q('#shortStats').textContent = `${city} · Days: ${days} · Avg: ${avg(arr.map(d=>Number(d.predicted_aqi ?? d.yhat ?? d.value ?? NaN)))}`;
+            return;
+          }
+        }
+      }catch(e){
+        // ignore and fallback
+      }
+
+      // Fallback: interpolate from monthly model (via prediction endpoint)
+      const monthsNeeded = Math.max(1, Math.ceil(days / 30));
+      const res = await fetch(API.hybrid(city, monthsNeeded));
+      const data = await res.json();
+      if(res.status !== 200 || data.error){
+        showError(q('#shortStats'), data.error || 'Failed to load short-term data');
+        renderShortChart([], city);
+        return;
+      }
+      const monthly = data.forecast || [];
+      if(!monthly.length){
+        showError(q('#shortStats'),'No monthly forecast returned');
+        renderShortChart([], city);
+        return;
+      }
+
+      // turn monthly into points (dates)
+      const monthPoints = monthly.map(m => {
+        const dt = m.date ? new Date(m.date) : (m.ds ? new Date(m.ds) : null);
+        return { dt, val: Number(m.predicted_aqi ?? m.yhat ?? NaN) };
+      }).filter(m => m.dt && !isNaN(m.val));
+
+      const start = new Date(); start.setHours(0,0,0,0);
+      const dailyDates = [];
+      for(let i=0;i<days;i++){
+        const d = new Date(start.getTime()); d.setDate(start.getDate()+i);
+        dailyDates.push(d);
+      }
+
+      let dailyValues = [];
+      if(monthPoints.length === 0){
+        showError(q('#shortStats'),'Monthly forecast unusable for interpolation');
+        renderShortChart([], city);
+        return;
+      } else if(monthPoints.length === 1){
+        const base = monthPoints[0].val;
+        for(let i=0;i<dailyDates.length;i++){
+          const jitter = (Math.sin(i * 0.47) + 1) * 0.02 * base;
+          const sign = (i % 2 === 0) ? 1 : -1;
+          dailyValues.push(Math.max(0, base + sign * jitter));
+        }
+      } else {
+        monthPoints.sort((a,b)=> a.dt - b.dt);
+        for(const day of dailyDates){
+          if(day <= monthPoints[0].dt){
+            dailyValues.push(monthPoints[0].val);
+            continue;
+          }
+          if(day >= monthPoints[monthPoints.length-1].dt){
+            dailyValues.push(monthPoints[monthPoints.length-1].val);
+            continue;
+          }
+          let low=null, high=null;
+          for(let k=0;k<monthPoints.length-1;k++){
+            if(day >= monthPoints[k].dt && day <= monthPoints[k+1].dt){ low = monthPoints[k]; high = monthPoints[k+1]; break; }
+          }
+          if(!low || !high){ dailyValues.push(monthPoints[0].val); continue; }
+          const totalMs = high.dt - low.dt;
+          const frac = (day - low.dt) / totalMs;
+          const v = low.val + frac * (high.val - low.val);
+          dailyValues.push(v);
+        }
+      }
+
+      const dailyLabels = dailyDates.map(d=> d.toISOString().slice(0,10) );
+      const dailySeries = dailyLabels.map((lbl,i)=> ({ date: lbl, predicted_aqi: dailyValues[i] }) );
+      renderShortChart(dailySeries, city);
+      q('#shortStats').textContent = `${city} · Days: ${days} · Avg: ${avg(dailyValues)}`;
+    }catch(err){
+      console.error(err);
+      showError(q('#shortStats'),'Network error while generating short-term forecast');
+    }
+  }
+
+  function renderShortChart(forecast, city){
+    const ctx = q('#shortChart').getContext('2d');
+    const labels = (forecast||[]).map(d=>d.date);
+    const values = (forecast||[]).map(d=>Number(d.predicted_aqi ?? d.yhat ?? NaN));
+    if(shortChart) shortChart.destroy();
+
+    const isArea = shortChartType === 'area';
+    const isCombo = shortChartType === 'combo';
+
+    const cfg = {
+      type: shortChartType === 'bar' ? 'bar' : 'line',
+      data: { labels, datasets: [{ label:`Short-term — ${city}`, data: values,
+        borderColor:getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#1abc9c',
+        backgroundColor: shortChartType==='bar' ? (getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#1abc9c') : (isArea ? 'rgba(26, 188, 156, 0.15)' : 'rgba(26,188,156,0.08)'),
+        fill: isArea, pointRadius: isCombo ? 3 : 0, borderWidth:2, tension:0.2 }]},
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text') || '#fff'}}},
+        scales:{ x:{ ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--muted')}}, y:{ ticks:{color:getComputedStyle(document.documentElement).getPropertyValue('--muted')}}}
+      }
+    };
+    shortChart = new Chart(ctx, cfg);
+  }
+
+  // -------------------------
+  // LIVE AQI (coords or city)
+  // -------------------------
+  async function loadLiveAQIByCoords(){
+    const box = q('#liveBoxContent');
+    box.innerHTML = '<div class="small-muted">Loading current AQI…</div>';
+    try{
+      if(!navigator.geolocation){ box.innerHTML = '<div class="small-muted">Geolocation not supported</div>'; return; }
+      const pos = await new Promise((res,rej)=> navigator.geolocation.getCurrentPosition(res,rej,{timeout:10000}));
+      const lat = pos.coords.latitude, lon = pos.coords.longitude;
+
+      // try reverse geocode to city name
+      let cityName = null;
+      try{
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const j = await r.json();
+        cityName = j?.address?.city || j?.address?.town || j?.address?.village || j?.address?.state || null;
+      }catch(e){ /* ignore */ }
+
+      // prefer city-based backend endpoint if we got a name
+      if(cityName){
+        try{
+          const res = await fetch(API.cityAqi(cityName));
+          const j = await res.json();
+          if(res.ok && !j.error){
+            const city = j.city_matched || cityName;
+            q('#liveBadge').textContent = `${city}`;
+            box.innerHTML = `<strong>${city}</strong>
+              <div class="small-muted">AQI: <strong>${j.latest_aqi ?? 'N/A'}</strong></div>
+              <div class="small-muted">PM2.5: ${j.pollutants?.pm2_5 ?? '—'} · PM10: ${j.pollutants?.pm10 ?? '—'}</div>`;
+            return;
+          } else {
+            console.warn('cityAqi returned error or not ok', j);
+          }
+        }catch(e){
+          console.warn('cityAqi request failed, fallback to coords', e);
+        }
+      }
+
+      // fallback to coords-based endpoint
+      try{
+        const res2 = await fetch(API.liveCoords(lat, lon));
+        const j2 = await res2.json();
+        if(j2.error){
+          box.innerHTML = `<span class="error">${j2.error}</span>`;
+          return;
+        }
+        const city = j2.city || cityName || j2.location?.name || 'Your area';
+        q('#liveBadge').textContent = `${city}`;
+        box.innerHTML = `<strong>${city}</strong>
+          <div class="small-muted">AQI: <strong>${j2.latest_aqi ?? 'N/A'}</strong></div>
+          <div class="small-muted">PM2.5: ${j2.pollutants?.pm2_5 ?? '—'} · PM10: ${j2.pollutants?.pm10 ?? '—'}</div>`;
+      }catch(e){
+        console.warn(e);
+        box.innerHTML = `<span class="error">Unable to fetch location AQI</span>`;
+      }
+
+    }catch(e){
+      console.warn('geoloc failed', e);
+      box.innerHTML = `<div class="small-muted">Location access denied or unavailable</div>`;
+    }
+  }
+
+  // -------------------------
+  // Trivia
+  // -------------------------
+  async function loadTriviaPool(){
+    try{
+      const res = await fetch(API.trivia);
+      const j = await res.json();
+      triviaPool = Array.isArray(j) ? j : (typeof j === 'object' ? Object.values(j).flat() : []);
+    }catch(e){
+      triviaPool = [
+        "Did you know? Peace Lily can remove several common indoor pollutants.",
+        "Indoor plants can improve mood and perceived air quality."
+      ];
+    }
+    startTriviaCycle();
+  }
+  function startTriviaCycle(){
+    const el = q('#triviaText');
+    function showOne(){
+      if(!triviaPool || !triviaPool.length) return;
+      const t = triviaPool[Math.floor(Math.random()*triviaPool.length)];
+      el.textContent = t;
+    }
+    showOne();
+    if(triviaTimer) clearInterval(triviaTimer);
+    triviaTimer = setInterval(showOne, 60*1000); // cycle each minute
+  }
+
+  // -------------------------
+  // City AQI lookup with fallback when coordinates file is missing
+  // -------------------------
+  async function lookupCityAQI(cityName){
+    const out = q('#lookupResult');
+    out.innerHTML = '<div class="small-muted">Checking...</div>';
+    try{
+      // first try backend route (fast if coordinates file ready)
+      try{
+        const res = await fetch(API.cityAqi(cityName));
+        const j = await res.json();
+        if(res.ok && !j.error){
+          // backend responded with matched city and latest values
+          const city = j.city_matched || cityName;
+          out.innerHTML = `<strong>${city}</strong><div class="small-muted">AQI: <strong>${j.latest_aqi ?? 'N/A'}</strong></div><div class="small-muted">PM2.5: ${j.pollutants?.pm2_5 ?? '—'} · PM10: ${j.pollutants?.pm10 ?? '—'}</div>`;
+          return;
+        } else {
+          // if backend returns a coordinates-file-not-ready message or other error, fall through to geocode
+          console.warn('backend cityAqi response error', j);
+        }
+      }catch(e){
+        console.warn('cityAqi backend failed, will attempt direct geocode -> open-meteo', e);
+      }
+
+      // fallback: use Nominatim to get coords, then call open-meteo directly
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityName)}&limit=1`);
+      const geo = await geoRes.json();
+      if(!Array.isArray(geo) || !geo.length){
+        out.innerHTML = `<span class="error">City not found by geocoding.</span>`;
+        return;
+      }
+      const lat = geo[0].lat, lon = geo[0].lon;
+      // call open-meteo air-quality (hourly)
+      const omUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=us_aqi,pm10,pm2_5`;
+      const omRes = await fetch(omUrl);
+      if(!omRes.ok){
+        out.innerHTML = `<span class="error">Open-Meteo lookup failed (status ${omRes.status}).</span>`;
+        return;
+      }
+      const omJ = await omRes.json();
+      // pick latest available hour value
+      const aqiSeries = omJ?.hourly?.us_aqi || [];
+      const pm25Series = omJ?.hourly?.pm2_5 || [];
+      const pm10Series = omJ?.hourly?.pm10 || [];
+      const latestAqi = Array.isArray(aqiSeries) && aqiSeries.length ? aqiSeries[aqiSeries.length-1] : null;
+      const latestPm25 = Array.isArray(pm25Series) && pm25Series.length ? pm25Series[pm25Series.length-1] : null;
+      const latestPm10 = Array.isArray(pm10Series) && pm10Series.length ? pm10Series[pm10Series.length-1] : null;
+      out.innerHTML = `<strong>${cityName}</strong><div class="small-muted">AQI: <strong>${latestAqi ?? 'N/A'}</strong></div><div class="small-muted">PM2.5: ${latestPm25 ?? '—'} · PM10: ${latestPm10 ?? '—'}</div>`;
+    }catch(err){
+      console.error(err);
+      out.innerHTML = `<span class="error">Lookup failed. Try again.</span>`;
+    }
+  }
+
+  // -------------------------
+  // Global AQI snapshot
+  // -------------------------
+  async function fetchGlobalSnapshot(){
+    q('#globalPanel').style.display = 'block';
+    q('#globalGrid').innerHTML = '<div class="small-muted">Loading global snapshot (sample)...</div>';
+    try{
+      const res = await fetch(API.globalAqi);
+      const j = await res.json();
+      if(!res.ok || typeof j !== 'object'){
+        // if coordinates file not available, present friendly fallback
+        const msg = j?.error || 'unknown';
+        q('#globalGrid').innerHTML = `<div class="small-muted">Snapshot failed: ${msg}. You can still search a city using the lookup box (direct open-meteo fallback).</div>`;
+        return;
+      }
+      const items = Object.entries(j).slice(0, 40);
+      if(!items.length){ q('#globalGrid').innerHTML = '<div class="small-muted">No data available</div>'; return; }
+      q('#globalGrid').innerHTML = items.map(([city, info])=>{
+        const aqi = info?.aqi ?? 'N/A';
+        const pm25 = info?.pm25 ?? '—';
+        const pm10 = info?.pm10 ?? '—';
+        const color = aqi === null || aqi === 'N/A' ? '#95a5a6' : (aqi <= 50 ? '#2ecc71' : aqi<=100 ? '#f1c40f' : aqi<=150 ? '#f39c12' : aqi<=200? '#e67e22' : aqi<=300? '#9b59b6' : '#95a5a6');
+        return `<div class="muted-box" style="padding:10px;border-radius:10px;">
+          <div style="font-weight:700">${city}</div>
+          <div style="margin-top:6px;"><span style="background:${color};padding:6px;border-radius:8px;color:#000;font-weight:800">${aqi}</span></div>
+          <div class="small-muted" style="margin-top:6px">PM2.5: ${pm25} · PM10: ${pm10}</div>
+        </div>`;
+      }).join('');
+    }catch(e){
+      console.error(e);
+      q('#globalGrid').innerHTML = '<div class="small-muted">Failed to fetch global snapshot</div>';
+    }
+  }
+
+  // -------------------------
+  // Wiring / UI events
+  // -------------------------
+  q('#historicShow').addEventListener('click', ()=> {
+    const city=q('#historicCity').value;
+    loadHistoric(city, '', '');
+  });
+  q('#historicApply').addEventListener('click', ()=> {
+    const city=q('#historicCity').value;
+    const s = q('#historicFrom').value ? q('#historicFrom').value + '-01' : '';
+    const e = q('#historicTo').value ? q('#historicTo').value + '-01' : '';
+    loadHistoric(city, s, e);
+  });
+
+  q('#historicSearch').addEventListener('keypress', (e)=> {
+    if(e.key==='Enter'){ const v=q('#historicSearch').value.trim().toLowerCase(); if(!v) return; const m=cities.find(c=>c.toLowerCase().includes(v)); if(m){ q('#historicCity').value = m; loadHistoric(m); } else alert('City not found'); }
+  });
+
+  q('#shortGenerate').addEventListener('click', ()=> {
+    const city = q('#shortCity').value;
+    const days = Number(q('#shortDays').value) || 7;
+    generateShortTerm(city, days);
+  });
+  q('#shortSearch').addEventListener('keypress', (e)=> {
+    if(e.key==='Enter'){ const v=q('#shortSearch').value.trim().toLowerCase(); if(!v) return; const m=cities.find(c=>c.toLowerCase().includes(v)); if(m){ q('#shortCity').value = m; } else alert('City not found'); }
+  });
+
+  q('#predictGenerate').addEventListener('click', ()=> {
+    const city = q('#predictCity').value;
+    const h = Number(q('#predictHorizon').value) || 12;
+    loadPrediction(city, h);
+  });
+  q('#predictSearch').addEventListener('keypress', (e)=> {
+    if(e.key==='Enter'){ const v=q('#predictSearch').value.trim().toLowerCase(); if(!v) return; const m=cities.find(c=>c.toLowerCase().includes(v)); if(m){ q('#predictCity').value = m; loadPrediction(m, Number(q('#predictHorizon').value)||12); } else alert('City not found'); }
+  });
+
+  // Chart type toggles
+  q('#historicToggleLine').addEventListener('click', ()=>{ historicChartType='line'; loadHistoric(q('#historicCity').value); });
+  q('#historicToggleBar').addEventListener('click', ()=>{ historicChartType='bar'; loadHistoric(q('#historicCity').value); });
+  q('#historicToggleArea').addEventListener('click', ()=>{ historicChartType='area'; loadHistoric(q('#historicCity').value); });
+  q('#historicToggleCombo').addEventListener('click', ()=>{ historicChartType='combo'; loadHistoric(q('#historicCity').value); });
+
+  q('#predictToggleLine').addEventListener('click', ()=>{ predictChartType='line'; loadPrediction(q('#predictCity').value, Number(q('#predictHorizon').value)||12); });
+  q('#predictToggleBar').addEventListener('click', ()=>{ predictChartType='bar'; loadPrediction(q('#predictCity').value, Number(q('#predictHorizon').value)||12); });
+  q('#predictToggleArea').addEventListener('click', ()=>{ predictChartType='area'; loadPrediction(q('#predictCity').value, Number(q('#predictHorizon').value)||12); });
+  q('#predictToggleCombo').addEventListener('click', ()=>{ predictChartType='combo'; loadPrediction(q('#predictCity').value, Number(q('#predictHorizon').value)||12); });
+
+  q('#shortToggleLine').addEventListener('click', ()=>{ shortChartType='line'; generateShortTerm(q('#shortCity').value, Number(q('#shortDays').value)||7); });
+  q('#shortToggleBar').addEventListener('click', ()=>{ shortChartType='bar'; generateShortTerm(q('#shortCity').value, Number(q('#shortDays').value)||7); });
+  q('#shortToggleArea').addEventListener('click', ()=>{ shortChartType='area'; generateShortTerm(q('#shortCity').value, Number(q('#shortDays').value)||7); });
+  q('#shortToggleCombo').addEventListener('click', ()=>{ shortChartType='combo'; generateShortTerm(q('#shortCity').value, Number(q('#shortDays').value)||7); });
+
+  // theme toggle
+  (function initTheme(){
+    const stored = localStorage.getItem('ventoa_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', stored);
+    q('#themeToggle').checked = (stored === 'light');
+    q('#themeToggle').addEventListener('change', ()=> {
+      const t = q('#themeToggle').checked ? 'light':'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('ventoa_theme', t);
+    });
+  })();
+
+  // Detect location button
+  q('#detectBtn').addEventListener('click', async ()=> {
+    await loadCities(); // ensure cities
+    await loadLiveAQIByCoords();
+    try{
+      if(!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+        const j = await r.json();
+        const candidate = j?.address?.city || j?.address?.town || j?.address?.village || j?.address?.state;
+        if(candidate){
+          const match = cities.find(c => c.toLowerCase().includes(candidate.toLowerCase()));
+          if(match){
+            setAllCities(match);
+            loadHistoric(match);
+            loadPrediction(match, Number(q('#predictHorizon').value)||12);
+            generateShortTerm(match, Number(q('#shortDays').value)||7);
+            return;
+          }
+        }
+        if(cities[0]){ setAllCities(cities[0]); loadHistoric(cities[0]); loadPrediction(cities[0], Number(q('#predictHorizon').value)||12); generateShortTerm(cities[0], Number(q('#shortDays').value)||7); }
+      }, ()=>{}, {timeout:8000});
+    }catch(e){}
+  });
+
+  // global snapshot
+  q('#globalFetch').addEventListener('click', fetchGlobalSnapshot);
+  q('#globalClose').addEventListener('click', ()=> q('#globalPanel').style.display='none');
+
+  // -------------------------
+  // Utility: set same selected city across selects
+  // -------------------------
+  function setAllCities(name){
+    q('#historicCity').value = name;
+    q('#shortCity').value = name;
+    q('#predictCity').value = name;
+  }
+
+  // -------------------------
+  // Suggest wiring
+  // -------------------------
+  attachSuggest(q('#historicSearch'), q('#historicSuggest'), (val)=>{ q('#historicCity').value = val; loadHistoric(val); });
+  attachSuggest(q('#shortSearch'), q('#shortSuggest'), (val)=>{ q('#shortCity').value = val; generateShortTerm(val, Number(q('#shortDays').value)||7); });
+  attachSuggest(q('#predictSearch'), q('#predictSuggest'), (val)=>{ q('#predictCity').value = val; loadPrediction(val, Number(q('#predictHorizon').value)||12); });
+
+  // Lookup wiring
+  q('#lookupBtn').addEventListener('click', ()=> {
+    const txt = q('#lookupSearch').value.trim();
+    if(!txt){ q('#lookupResult').innerHTML = '<span class="error">Enter a city name</span>'; return; }
+    lookupCityAQI(txt);
+  });
+
+  // -------------------------
+  // Initialization sequence
+  // -------------------------
+  (async function init(){
+    await loadCities();
+    await loadTriviaPool();
+
+    // Try geolocation first; fallback to first city
+    let initialCity = null;
+    try{
+      if(navigator.geolocation){
+        const pos = await new Promise((res,rej)=> navigator.geolocation.getCurrentPosition(res, rej, {timeout:6500}));
+        try{
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+          const j = await r.json();
+          const candidate = j?.address?.city || j?.address?.town || j?.address?.village || j?.address?.state;
+          if(candidate){
+            const match = cities.find(c=>c.toLowerCase().includes(candidate.toLowerCase()));
+            if(match) initialCity = match;
+          }
+        }catch(e){ /* ignore */ }
+      }
+    }catch(e){ console.warn('geolocation not available or denied'); }
+
+    if(!initialCity && cities && cities.length) initialCity = cities[0];
+
+    if(initialCity){
+      setAllCities(initialCity);
+      loadHistoric(initialCity);
+      loadPrediction(initialCity, Number(q('#predictHorizon').value)||12);
+      generateShortTerm(initialCity, Number(q('#shortDays').value)||7);
+    } else {
+      showError(q('#historicStats'), 'No city list available');
+      showError(q('#predictStats'), 'No city list available');
+      showError(q('#shortStats'), 'No city list available');
+    }
+
+    // load live AQI but don't block
+    loadLiveAQIByCoords();
+  })();
+
+  </script>
+</body>
+</html>
+"""
+
+path = Path("/mnt/data/dashboard_patched.html")
+path.write_text(html, encoding="utf-8")
+path.exists()
+

@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.log
+*.csv
+*.joblib
+*.keras
+models/
+ML_Server/
+frontend/
+node_modules/
+.git/
+.gitignore
+.env

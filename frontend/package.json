@@ -1,0 +1,21 @@
+{
+  "name": "vento-aureo-frontend",
+  "version": "1.0.0",
+  "description": "Vento Aureo - Air Quality Monitoring Frontend",
+  "main": "demo-server.js",
+  "scripts": {
+    "start": "node demo-server.js 8000",
+    "dev": "node demo-server.js 8080",
+    "build": "node scripts/build.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "air-quality",
+    "monitoring",
+    "vento-aureo"
+  ],
+  "author": "",
+  "license": "ISC"
+}

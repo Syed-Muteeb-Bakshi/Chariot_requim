@@ -1,0 +1,31 @@
+# --- Core Framework ---
+Flask==3.0.2
+Flask-Cors==4.0.0
+
+# --- ML Libraries ---
+numpy==1.26.4
+pandas==2.2.1
+scikit-learn==1.4.1.post1
+xgboost==2.0.3
+tensorflow==2.15.0
+
+# --- Prophet for time-series ---
+prophet==1.1.5
+
+# --- Utilities ---
+joblib==1.3.2
+python-dateutil==2.8.2
+requests==2.31.0
+geopy==2.4.1
+
+# --- Optional but helpful (safe to keep) ---
+matplotlib==3.8.3
+
+# --- For time parsing / AI utils ---
+pytz==2024.1
+
+# --- Deployment safety (prevents crash on cloud builds) ---
+gunicorn==21.2.0
+
+# --- For LSTM model loading ---
+keras==2.15.0
