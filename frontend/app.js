@@ -1452,12 +1452,12 @@ function renderPredictChart(forecast, city) {
     const ctx = document.getElementById('predict-chart')?.getContext('2d');
     if (!ctx) return;
 
-    // Convert to time-based data points
+    // Convert to time-based data points (use Date objects for time scale)
     const dataPoints = (forecast || []).map(d => {
         const timestamp = d.timestamp || d.ts || d.date || d.ds;
         const date = new Date(timestamp);
         return {
-            x: date.getTime(),
+            x: date,
             y: Number(d.aqi ?? d.predicted_aqi ?? d.yhat)
         };
     });
@@ -1486,7 +1486,8 @@ function renderPredictChart(forecast, city) {
             responsive: true,
             maintainAspectRatio: false,
             interaction: {
-                mode: 'index',
+                mode: 'nearest',
+                axis: 'x',
                 intersect: false
             },
             plugins: {
@@ -1517,8 +1518,11 @@ function renderPredictChart(forecast, city) {
                 tooltip: {
                     callbacks: {
                         title: (items) => {
-                            const date = new Date(items[0].parsed.x);
-                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            if (items && items.length > 0 && items[0].parsed) {
+                                const date = items[0].parsed.x instanceof Date ? items[0].parsed.x : new Date(items[0].parsed.x);
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            }
+                            return '';
                         }
                     }
                 }
@@ -1553,6 +1557,11 @@ function renderPredictChart(forecast, city) {
                         color: gridColor
                     }
                 }
+            },
+            onDblClick: (event) => {
+                if (charts.predict) {
+                    charts.predict.resetZoom();
+                }
             }
         }
     });
@@ -1568,12 +1577,12 @@ function updateHistoricChartType() {
     const ctx = document.getElementById('historic-chart')?.getContext('2d');
     if (!ctx || !currentHistoricData.length) return;
 
-    // Convert to time-based data points
+    // Convert to time-based data points (use Date objects for time scale)
     const dataPoints = currentHistoricData.map(d => {
         const timestamp = d.timestamp || d.date || d.ds || d.ts;
         const date = new Date(timestamp);
         return {
-            x: date.getTime(),
+            x: date,
             y: Number(d.aqi ?? d.yhat ?? d.predicted_aqi)
         };
     });
@@ -1674,8 +1683,11 @@ function updateHistoricChartType() {
                 tooltip: {
                     callbacks: {
                         title: (items) => {
-                            const date = new Date(items[0].parsed.x);
-                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            if (items && items.length > 0 && items[0].parsed) {
+                                const date = items[0].parsed.x instanceof Date ? items[0].parsed.x : new Date(items[0].parsed.x);
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            }
+                            return '';
                         }
                     }
                 }
@@ -1818,6 +1830,11 @@ function createPollutantPieChart(data) {
             plugins: {
                 legend: {
                     labels: { color: textColor }
+                }
+            },
+            onDblClick: (event) => {
+                if (charts.historic) {
+                    charts.historic.resetZoom();
                 }
             }
         }
