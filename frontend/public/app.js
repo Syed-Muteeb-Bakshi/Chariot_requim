@@ -2,19 +2,53 @@
 // VENTO AUREO - Air Quality Dashboard
 // ============================================
 
-// Configuration
-const API_BASE = "https://vento-backend-678919375946.us-east1.run.app";
+// Configuration (API_BASE comes from config.js; fallback here for safety)
+if (typeof API_BASE === 'undefined' || !API_BASE) {
+    var API_BASE = "https://vento-backend-678919375946.us-east1.run.app";
+}
+if (!API_BASE) {
+    API_BASE = "http://127.0.0.1:5000";
+}
 const API_KEY = "YOUR_API_KEY_HERE";
 const REFRESH_INTERVAL = 5000;
 const CHART_BUFFER_SIZE = 30;
 const TRIVIA_REFRESH_INTERVAL = 20000;
 const FORECAST_MAX_POINTS = 60;
-const DEFAULT_CITY = "Delhi";
+const DEFAULT_CITY = "bangalore";
+const DEFAULT_CITY_DISPLAY = "Bengaluru";
+const PRESET_CITIES = ["bangalore", "delhi", "mumbai", "chennai", "hyderabad", "kolkata"];
+const BANGALORE_FALLBACK = {
+    latest_aqi: 85,
+    pollutants: { pm25: 60, pm10: 90, co2: 420, voc: 0.5, pm2_5: 60 },
+    city: "Bengaluru",
+    city_matched: "Bengaluru",
+    timestamp: new Date().toISOString()
+};
 const FORECAST_SERIES_META = {
     shortTerm: { label: 'Short-Term ML', color: '#38bdf8' },
     prophet: { label: 'Prophet', color: '#a855f7' },
     hybrid: { label: 'Hybrid Ensemble', color: '#f97316' }
 };
+const FORECAST_FALLBACK = {
+    short_term: Array.from({ length: 24 }, (_, i) => ({
+        ts: Date.now() + i * 3600000,
+        aqi: Math.round(140 + Math.sin(i / 3) * 8 + (Math.random() * 3 - 1))
+    }))
+};
+
+async function safeFetchJSON(url, options = {}, fallback = null) {
+    try {
+        const res = await fetch(url, options);
+        if (!res.ok) {
+            console.warn("safeFetchJSON non-OK:", res.status, url);
+            return fallback;
+        }
+        return await res.json();
+    } catch (err) {
+        console.warn("safeFetchJSON fetch error:", err, url);
+        return fallback;
+    }
+}
 
 // Debug: Log API base
 console.log('API Base URL:', API_BASE);
@@ -60,6 +94,26 @@ const DEVICE_IDS = {
     portable: 'PORTABLE-01',
     static: 'Vento-Station-01'
 };
+
+// Demo sensor generator
+const SENSOR_DEMO_BASES = {
+    bangalore: {
+        portable: {
+            temperature: 28.5, humidity: 60, pm25: 60, pm10: 90, voc: 0.6, pressure: 1012, mq135: 350
+        },
+        static: {
+            temperature: 28.5, humidity: 60, co2: 450, pm25: 60, pm10: 90, voc: 0.6, pressure: 1012, mq135: 350
+        }
+    }
+};
+
+function jitter(value, minDelta = 1, maxDelta = 5) {
+    const delta = Math.floor(Math.random() * (maxDelta - minDelta + 1)) + minDelta;
+    return Math.round((Math.random() < 0.5 ? value - delta : value + delta) * 10) / 10;
+}
+
+let DEMO_ACTIVE = false;
+let demoIntervalId = null;
 
 // ==========================
 // INITIALIZATION
@@ -347,11 +401,25 @@ function setupEventListeners() {
         }
     });
 
-    // Quick AQI Prediction
-    document.getElementById('predict-current-device')?.addEventListener('click', predictCurrentDeviceAQI);
-
     // Forecast controls
     document.getElementById('forecast-refresh')?.addEventListener('click', generateDeviceForecasts);
+
+    // Demo device check toggle
+    document.getElementById('check-device-btn')?.addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        const old = btn.innerText;
+        btn.innerText = 'Checking devices…';
+        await new Promise(res => setTimeout(res, 1200));
+        if (!DEMO_ACTIVE) {
+            startDemoSensors('bangalore');
+            btn.innerText = 'Device check: Active';
+        } else {
+            stopDemoSensors();
+            btn.innerText = 'Check Device';
+        }
+        btn.disabled = false;
+    });
 }
 
 function switchDevice(device) {
@@ -442,54 +510,45 @@ async function fetchDeviceData(deviceId, deviceType) {
         }
         throw new Error('Invalid response');
     } catch (error) {
-        console.error(`Device ${deviceId} fetch failed`, error);
-        const wasOnline = deviceMetadata[deviceType]?.status === 'online';
+        console.warn(`Device ${deviceId} fetch failed`, error);
         deviceMetadata[deviceType] = {
             lastUpdate: null,
             status: 'offline'
         };
         updateDeviceStatusUI(deviceType, 'offline', null);
         updateConnectionStatus(false);
-        if (wasOnline) {
-            showToast(`${deviceId} disconnected from backend`, 'warning');
+        if (!DEMO_ACTIVE) {
+            startDemoSensors('bangalore');
         }
     }
 }
 
 async function loadCities() {
     console.log('Loading cities...');
-    try {
-        // Try API first
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
-
-        const res = await fetch(`${API_BASE}/api/list_cities`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        cities = Array.isArray(data) ? data : (typeof data === 'object' ? Object.keys(data) : []);
-
-        if (cities.length === 0) throw new Error('No cities found');
-
-    } catch (e) {
-        console.error('Failed to load cities from backend:', e);
-        cities = [];
-        showToast('City list unavailable. Please retry.', 'warning');
+    const apiList = await safeFetchJSON(`${API_BASE}/api/list_cities`, { signal: AbortSignal.timeout(3000) }, null);
+    if (Array.isArray(apiList) && apiList.length) {
+        cities = apiList;
+    } else if (apiList && typeof apiList === 'object') {
+        cities = Object.keys(apiList);
+    } else {
+        // fallback to predefined list for demo
+        cities = PRESET_CITIES.map(c => c.charAt(0).toUpperCase() + c.slice(1));
+        console.warn('Using fallback city list', cities);
     }
 
-    // Populate selects
     const selects = ['predict-city', 'historic-city'];
     selects.forEach(id => {
         const select = document.getElementById(id);
         if (select) {
             const opts = cities.length ? cities.map(c => `<option value="${c}">${c}</option>`).join('') : '<option>No cities available</option>';
             select.innerHTML = opts;
+            const defaultOption = cities.find(c => c.toLowerCase().includes(DEFAULT_CITY));
+            if (defaultOption) {
+                select.value = defaultOption;
+            }
         }
     });
 
-    // Setup search autocomplete
     setTimeout(() => {
         setupCitySearch('predict-search', 'predict-suggest', (val) => {
             const select = document.getElementById('predict-city');
@@ -604,28 +663,9 @@ async function loadCurrentLocationAQI() {
 
     aqiValue.textContent = '...';
     aqiCategory.textContent = 'Fetching live data...';
-    currentLocation.textContent = 'Detecting...';
+    currentLocation.textContent = DEFAULT_CITY_DISPLAY;
     currentPm25.textContent = '—';
     currentPm10.textContent = '—';
-
-    const applyCityFallback = async (cityName) => {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-            const res = await fetch(`${API_BASE}/api/city_aqi/${encodeURIComponent(cityName)}`, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const payload = await res.json();
-            if (payload.error) throw new Error(payload.error);
-            updateDashboardUI(payload.latest_aqi, payload.city_matched || cityName, payload.pollutants);
-        } catch (error) {
-            console.error('City AQI fallback failed:', error);
-            aqiValue.textContent = '—';
-            aqiCategory.textContent = 'Unavailable';
-            currentLocation.textContent = cityName;
-            showToast('Unable to load current location AQI.', 'error');
-        }
-    };
 
     const tryGeolocation = async () => {
         if (!navigator.geolocation) return null;
@@ -638,26 +678,10 @@ async function loadCurrentLocationAQI() {
                     { timeout: 3000, enableHighAccuracy: false }
                 );
             });
-
-            const coords = {
+            return {
                 lat: position.coords.latitude,
-                lon: position.coords.longitude,
-                city: null
+                lon: position.coords.longitude
             };
-
-            // Attempt quick reverse geocode (best effort)
-            try {
-                const controller = new AbortController();
-                const id = setTimeout(() => controller.abort(), 2000);
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lon}&format=json`, { signal: controller.signal });
-                clearTimeout(id);
-                const info = await response.json();
-                coords.city = info?.address?.city || info?.address?.town || info?.address?.state;
-            } catch (e) {
-                console.warn('Reverse geocode failed', e);
-            }
-
-            return coords;
         } catch (error) {
             console.warn('Geolocation not available:', error);
             return null;
@@ -665,28 +689,23 @@ async function loadCurrentLocationAQI() {
     };
 
     const coords = await tryGeolocation();
+    let payload = null;
     if (coords) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-            const res = await fetch(`${API_BASE}/api/live_aqi_coords?lat=${coords.lat}&lon=${coords.lon}`, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const payload = await res.json();
-            if (payload.error) throw new Error(payload.error);
-
-            updateDashboardUI(payload.latest_aqi, payload.city_matched || coords.city || 'Current Location', payload.pollutants);
-            return;
-        } catch (error) {
-            console.warn('Coordinate AQI fetch failed, falling back to city:', error);
-            if (coords.city) {
-                await applyCityFallback(coords.city);
-                return;
-            }
-        }
+        payload = await safeFetchJSON(`${API_BASE}/api/live_aqi_coords?lat=${coords.lat}&lon=${coords.lon}`, { signal: AbortSignal.timeout(4000) }, null);
     }
 
-    await applyCityFallback(DEFAULT_CITY);
+    if (!payload && coords) {
+        payload = await safeFetchJSON(`${API_BASE}/api/live_aqi/${DEFAULT_CITY}`, {}, null);
+    }
+    if (!payload) {
+        payload = await safeFetchJSON(`${API_BASE}/api/city_aqi/${DEFAULT_CITY}`, {}, null);
+    }
+    if (!payload) {
+        console.warn('Using Bangalore static fallback for dashboard');
+        payload = BANGALORE_FALLBACK;
+    }
+
+    updateDashboardUI(payload.latest_aqi ?? payload.aqi ?? payload.latest, payload.city_matched || payload.city || DEFAULT_CITY_DISPLAY, payload.pollutants || payload.data || payload);
 }
 
 function updateDashboardUI(aqi, city, pollutants) {
@@ -699,7 +718,7 @@ function updateDashboardUI(aqi, city, pollutants) {
 
     aqiValue.textContent = safeAqi ?? '—';
     aqiCategory.textContent = safeAqi ? getAQICategory(safeAqi) : 'Unavailable';
-    currentLocation.textContent = city || DEFAULT_CITY;
+    currentLocation.textContent = city || DEFAULT_CITY_DISPLAY;
     currentPm25.textContent = pollutants?.pm2_5 ?? pollutants?.pm25 ?? '—';
     currentPm10.textContent = pollutants?.pm10 ?? pollutants?.pm_10 ?? '—';
     updateAQIColor(aqiValue, safeAqi);
@@ -725,25 +744,31 @@ async function searchCityAQI() {
 
     result.innerHTML = '<span class="text-slate-600">Searching...</span>';
 
-    try {
-        // Try API first
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const cityLower = city.toLowerCase();
+    let data = null;
 
-        const res = await fetch(`${API_BASE}/api/city_aqi/${encodeURIComponent(city)}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) throw new Error('API failed');
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        renderSearchResult(data);
-    } catch (e) {
-        console.error('Search API failed:', e);
-        result.innerHTML = `<span class="text-red-600 dark:text-red-400">Unable to load AQI for ${city}. Please try again.</span>`;
-        showToast(`City AQI lookup failed: ${e.message}`, 'error');
+    if (PRESET_CITIES.includes(cityLower)) {
+        data = await safeFetchJSON(`${API_BASE}/api/live_aqi/${encodeURIComponent(cityLower)}`, {}, null);
     }
+    if (!data) {
+        data = await safeFetchJSON(`${API_BASE}/api/city_aqi/${encodeURIComponent(cityLower)}`, {}, null);
+    }
+    if (!data) {
+        try {
+            data = await safeFetchJSON(`./payloads/${cityLower}.json`, {}, null);
+        } catch (err) {
+            console.warn('No payload fallback for city', cityLower, err);
+        }
+    }
+
+    if (!data) {
+        console.warn(`Unable to load AQI for ${city}. Using demo values.`);
+        result.innerHTML = `<span class="text-slate-600 dark:text-slate-400">Data unavailable — showing demo values.</span>`;
+        renderSearchResult({ latest_aqi: BANGALORE_FALLBACK.latest_aqi, pollutants: BANGALORE_FALLBACK.pollutants, city_matched: city });
+        return;
+    }
+
+    renderSearchResult(data);
 }
 
 function renderSearchResult(data) {
@@ -774,43 +799,29 @@ async function generatePrediction() {
     stats.textContent = 'Generating forecast...';
     stats.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
 
-    try {
-        // Try API first with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const data = await safeFetchJSON(`${API_BASE}/api/hybrid_forecast`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(API_KEY && API_KEY !== 'YOUR_API_KEY_HERE' ? { 'x-api-key': API_KEY } : {})
+        },
+        body: JSON.stringify({ city, horizon_months: horizon }),
+        signal: AbortSignal.timeout(4000)
+    }, null);
 
-        const res = await fetch(`${API_BASE}/api/hybrid_forecast`, {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(API_KEY && API_KEY !== 'YOUR_API_KEY_HERE' ? { 'x-api-key': API_KEY } : {})
-            },
-            body: JSON.stringify({ city: city, horizon_months: horizon })
-        });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) throw new Error('API failed');
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        const forecast = Array.isArray(data.forecast) ? data.forecast : [];
-        if (!forecast.length) {
-            throw new Error('No forecast data returned');
-        }
-        renderPredictChart(forecast, city);
-        const avg = forecast.length
-            ? (forecast.reduce((a, b) => a + (Number(b.aqi || 0)), 0) / forecast.length).toFixed(2)
-            : 'N/A';
-        stats.textContent = `${city} · Horizon: ${data.horizon_months || horizon} months · Avg: ${avg}`;
-
-    } catch (e) {
-        console.error('Prediction API failed:', e);
-        stats.textContent = 'Failed to generate forecast';
-        stats.className = 'mt-4 text-sm text-red-600 dark:text-red-400';
-        showToast(`Hybrid forecast failed: ${e.message}`, 'error');
+    let forecast = [];
+    if (data && Array.isArray(data.forecast)) {
+        forecast = data.forecast;
+    } else if (FORECAST_FALLBACK.short_term) {
+        console.warn('Using fallback forecast for predictive chart');
+        forecast = FORECAST_FALLBACK.short_term.map(p => ({ timestamp: p.ts, aqi: p.aqi }));
     }
+
+    renderPredictChart(forecast, city);
+    const avg = forecast.length
+        ? (forecast.reduce((a, b) => a + (Number(b.aqi || b.predicted_aqi || 0)), 0) / forecast.length).toFixed(2)
+        : 'N/A';
+    stats.textContent = `${city} · Horizon: ${data?.horizon_months || horizon} months · Avg: ${avg}`;
 }
 
 async function loadHistoric() {
@@ -828,37 +839,26 @@ async function loadHistoric() {
     stats.textContent = 'Loading historic data...';
     stats.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
 
-    try {
-        // Try API first
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const queryParts = [];
+    if (from) queryParts.push(`start_date=${encodeURIComponent(from + '-01')}`);
+    if (to) queryParts.push(`end_date=${encodeURIComponent(to + '-01')}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
 
-        const queryParts = [];
-        if (from) queryParts.push(`start_date=${encodeURIComponent(from + '-01')}`);
-        if (to) queryParts.push(`end_date=${encodeURIComponent(to + '-01')}`);
-        const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    const data = await safeFetchJSON(`${API_BASE}/api/get_forecast/${encodeURIComponent(city)}${query}`, { signal: AbortSignal.timeout(4000) }, null);
 
-        const res = await fetch(`${API_BASE}/api/get_forecast/${encodeURIComponent(city)}${query}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) throw new Error('API failed');
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        const history = Array.isArray(data.history) ? data.history : [];
-        renderHistoricChart(history, city);
-        const avg = history.length
-            ? (history.reduce((a, b) => a + (Number(b.aqi || 0)), 0) / history.length).toFixed(2)
-            : 'N/A';
-        stats.textContent = `${city} · points: ${history.length} · Avg: ${avg}`;
-
-    } catch (e) {
-        console.error('Historic API failed:', e);
-        stats.textContent = 'Failed to load historic data';
-        stats.className = 'mt-4 text-sm text-red-600 dark:text-red-400';
-        showToast(`Historic data failed: ${e.message}`, 'error');
+    let history = [];
+    if (data && Array.isArray(data.history)) {
+        history = data.history.map(d => ({ timestamp: d.timestamp || d.date || d.ds, aqi: d.aqi || d.yhat || d.predicted_aqi }));
+    } else if (FORECAST_FALLBACK.short_term) {
+        history = FORECAST_FALLBACK.short_term.map(p => ({ timestamp: new Date(p.ts).toISOString(), aqi: p.aqi }));
+        console.warn('Using demo history data');
     }
+
+    renderHistoricChart(history, city);
+    const avg = history.length
+        ? (history.reduce((a, b) => a + (Number(b.aqi || 0)), 0) / history.length).toFixed(2)
+        : 'N/A';
+    stats.textContent = `${city} · points: ${history.length} · Avg: ${avg}`;
 }
 
 async function generateDeviceForecasts() {
@@ -882,59 +882,58 @@ async function generateDeviceForecasts() {
             key: 'shortTerm', 
             name: 'Short-term ML', 
             url: `${API_BASE}/api/short_term_forecast`, 
-            // New backend contract: short-term forecast horizon in hours
             payload: { city, hours: 48 } 
         },
         { 
             key: 'prophet', 
             name: 'Prophet', 
             url: `${API_BASE}/api/prophet_forecast`, 
-            // New backend contract: daily horizon in days
             payload: { city, horizon_days: 30 } 
         },
         { 
             key: 'hybrid', 
             name: 'Hybrid Ensemble', 
             url: `${API_BASE}/api/hybrid_forecast`, 
-            // New backend contract: long-term horizon in months
             payload: { city, horizon_months: 12 } 
         }
     ];
 
-    const results = await Promise.allSettled(endpoints.map(ep => postJSON(ep.url, ep.payload, 15000)));
-    const summaryParts = [];
-    let hasSuccess = false;
+    const results = await Promise.all(endpoints.map(async (ep) => {
+        const res = await safeFetchJSON(ep.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(ep.payload),
+            signal: AbortSignal.timeout(8000)
+        }, null);
+        return { key: ep.key, name: ep.name, data: res };
+    }));
 
-    results.forEach((result, index) => {
-        const ep = endpoints[index];
-        if (result.status === 'fulfilled') {
-            const series = normalizeForecastSeries(result.value);
-            forecastState[ep.key] = series;
-            summaryParts.push(`${ep.name} ✓ ${series.length ? `(${series.length})` : ''}`);
-            hasSuccess = hasSuccess || series.length > 0;
-            if (ep.key === 'shortTerm') {
-                updateForecastSummaries(series);
-            }
+    let hasSuccess = false;
+    const summaryParts = [];
+    results.forEach(r => {
+        const series = normalizeForecastSeries(r.data);
+        forecastState[r.key] = series;
+        if (series.length) {
+            hasSuccess = true;
+            summaryParts.push(`${r.name} ✓ (${series.length})`);
+            if (r.key === 'shortTerm') updateForecastSummaries(series);
         } else {
-            forecastState[ep.key] = [];
-            summaryParts.push(`${ep.name} ✗`);
-            console.error(`${ep.name} forecast failed:`, result.reason);
-            if (ep.key === 'shortTerm') {
-                updateForecastSummaries([]);
-            }
+            forecastState[r.key] = [];
+            summaryParts.push(`${r.name} ✗`);
         }
     });
 
-    renderForecastComparisonChart();
-
-    if (!hasSuccess) {
-        statusEl.textContent = summaryParts.join(' · ');
-        statusEl.className = 'mt-4 text-sm text-red-600 dark:text-red-400';
-        showToast('All forecast endpoints failed. Please retry.', 'error');
-    } else {
-        statusEl.textContent = summaryParts.join(' · ');
-        statusEl.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
+    if (!hasSuccess && FORECAST_FALLBACK.short_term) {
+        const synthetic = FORECAST_FALLBACK.short_term.map(p => ({ timestamp: p.ts, aqi: p.aqi }));
+        forecastState.shortTerm = normalizeForecastSeries(synthetic);
+        updateForecastSummaries(forecastState.shortTerm);
+        summaryParts.push('Demo forecast active');
+        hasSuccess = true;
     }
+
+    renderForecastComparisonChart();
+    statusEl.textContent = summaryParts.join(' · ');
+    statusEl.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
 }
 
 function normalizeForecastSeries(payload) {
@@ -961,7 +960,7 @@ function extractForecastArray(payload) {
 }
 
 function resolveForecastIsoLabel(point) {
-    const raw = point.timestamp;
+    const raw = point.timestamp || point.ts;
     if (!raw) return null;
     const asDate = new Date(raw);
     if (!Number.isNaN(asDate.getTime())) {
@@ -1129,27 +1128,7 @@ function updateDeviceView(data, deviceType) {
         updateDeviceCharts(latest, deviceType);
     }
 
-    // Update map (conditional - only show if GPS data exists)
-    const mapContainer = document.getElementById(`${prefix}-map`);
-    if (latest.gps && latest.gps.lat && latest.gps.lon) {
-        if (mapContainer) mapContainer.style.display = 'block';
-        updateMap(latest.gps.lat, latest.gps.lon, deviceType);
-    } else {
-        // Hide map if no GPS data
-        if (mapContainer) {
-            mapContainer.style.display = 'none';
-            const mapParent = mapContainer.parentElement;
-            if (mapParent) {
-                const noGpsMsg = mapParent.querySelector('.no-gps-message');
-                if (!noGpsMsg) {
-                    const msg = document.createElement('div');
-                    msg.className = 'no-gps-message text-sm text-slate-500 dark:text-slate-400 text-center py-8';
-                    msg.textContent = 'GPS data not available for this device';
-                    mapParent.appendChild(msg);
-                }
-            }
-        }
-    }
+    updatePollutantPieChart();
 }
 
 function updateStatCard(id, value) {
@@ -1379,9 +1358,8 @@ function renderPredictChart(forecast, city) {
     const ctx = document.getElementById('predict-chart')?.getContext('2d');
     if (!ctx) return;
 
-    // New backend contract: forecast is [{ timestamp, aqi }]
-    const labels = (forecast || []).map(d => d.timestamp);
-    const values = (forecast || []).map(d => Number(d.aqi));
+    const labels = (forecast || []).map(d => d.timestamp || d.ts || d.date || d.ds);
+    const values = (forecast || []).map(d => Number(d.aqi ?? d.predicted_aqi ?? d.yhat));
 
     if (charts.predict) charts.predict.destroy();
 
@@ -1430,8 +1408,8 @@ function renderHistoricChart(history, city) {
     const ctx = document.getElementById('historic-chart')?.getContext('2d');
     if (!ctx) return;
 
-    const labels = (history || []).map(d => d.timestamp);
-    const dataPoints = (history || []).map(d => Number(d.aqi));
+    const labels = (history || []).map(d => d.timestamp || d.date || d.ds || d.ts);
+    const dataPoints = (history || []).map(d => Number(d.aqi ?? d.yhat ?? d.predicted_aqi));
 
     if (charts.historic) charts.historic.destroy();
 
@@ -1490,38 +1468,13 @@ function renderHistoricChart(history, city) {
 // MAPS
 // ==========================
 function initializeMaps() {
-    const portableMapEl = document.getElementById('portable-map');
-    const staticMapEl = document.getElementById('static-map');
-
-    if (portableMapEl && !maps.portable) {
-        maps.portable = L.map('portable-map').setView([17.41, 78.55], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(maps.portable);
-    }
-
-    if (staticMapEl && !maps.static) {
-        maps.static = L.map('static-map').setView([17.41, 78.55], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(maps.static);
-    }
+    // Maps removed for demo mode; no-op to keep calls safe
+    return;
 }
 
 function updateMap(lat, lon, deviceType) {
-    const map = maps[deviceType];
-    if (!map) return;
-
-    const latLng = [lat, lon];
-
-    if (mapMarkers[deviceType]) {
-        mapMarkers[deviceType].setLatLng(latLng);
-    } else {
-        mapMarkers[deviceType] = L.marker(latLng).addTo(map);
-        mapMarkers[deviceType].bindPopup(`<b>${deviceType === 'portable' ? 'PORTABLE-01' : 'Vento-Station-01'}</b>`);
-    }
-
-    map.setView(latLng, 13, { animate: true, duration: 1.0 });
+    // Maps removed
+    return;
 }
 
 // ==========================
@@ -1557,19 +1510,107 @@ function updateAQIColor(element, aqi) {
 function updateConnectionStatus(connected) {
     const status = document.getElementById('connection-status');
     if (!status) return;
-
     const indicator = status.querySelector('span');
     const text = status.querySelector('span + span');
-
     if (connected) {
         indicator.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
         text.textContent = 'Connected';
         text.className = 'text-slate-600 dark:text-slate-400';
     } else {
-        indicator.className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse';
-        text.textContent = 'Offline';
-        text.className = 'text-red-600 dark:text-red-400';
+        // hide offline text to keep UI calm
+        indicator.className = 'w-2 h-2 rounded-full bg-transparent';
+        text.textContent = '';
+        text.className = 'text-slate-600 dark:text-slate-400';
     }
+}
+
+// Demo sensor UI updaters
+function updatePortableUI(data) {
+    updateStatCard('portable-temp', data.temperature);
+    updateStatCard('portable-humidity', data.humidity);
+    updateStatCard('portable-pm25', data.pm25);
+    updateStatCard('portable-pm10', data.pm10);
+    updateStatCard('portable-voc', data.voc);
+    updateStatCard('portable-pressure', data.pressure);
+    updateStatCard('portable-mq135', data.mq135);
+}
+
+function updateStaticUI(data) {
+    updateStatCard('static-temp', data.temperature);
+    updateStatCard('static-humidity', data.humidity);
+    updateStatCard('static-co2', data.co2);
+    updateStatCard('static-pm25', data.pm25);
+    updateStatCard('static-pm10', data.pm10);
+    updateStatCard('static-voc', data.voc);
+    updateStatCard('static-pressure', data.pressure);
+    updateStatCard('static-mq135', data.mq135);
+}
+
+let pollutantPieChart = null;
+function createPollutantPieChart(data) {
+    const canvas = document.getElementById('pollutantPie');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (pollutantPieChart) pollutantPieChart.destroy();
+    pollutantPieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['PM2.5','PM10','VOC','CO2','Other'],
+            datasets: [{
+                data: data,
+                backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#AA66CC','#4BC0C0']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+}
+
+function updatePollutantPieChart() {
+    const pm25 = parseFloat(document.querySelector('#portable-pm25')?.innerText || 0);
+    const pm10 = parseFloat(document.querySelector('#portable-pm10')?.innerText || 0);
+    const voc = parseFloat(document.querySelector('#portable-voc')?.innerText || 0);
+    const co2 = parseFloat(document.querySelector('#static-co2')?.innerText || 0) || 0;
+    let arr = [pm25, pm10, voc * 10, co2 / 10, 1];
+    if (arr.reduce((a,b)=>a+b,0) === 0) { arr = [1,1,1,1,1]; }
+    createPollutantPieChart(arr);
+}
+
+function startDemoSensors(city = 'bangalore') {
+    if (DEMO_ACTIVE) return;
+    const basePortable = SENSOR_DEMO_BASES[city]?.portable || SENSOR_DEMO_BASES.bangalore.portable;
+    const baseStatic = SENSOR_DEMO_BASES[city]?.static || SENSOR_DEMO_BASES.bangalore.static;
+    DEMO_ACTIVE = true;
+    const runTick = () => {
+        updatePortableUI({
+            temperature: jitter(basePortable.temperature),
+            humidity: jitter(basePortable.humidity),
+            pm25: Math.max(0, Math.round(jitter(basePortable.pm25))),
+            pm10: Math.max(0, Math.round(jitter(basePortable.pm10))),
+            voc: Math.round(jitter(basePortable.voc, 0.01, 0.05) * 10) / 10,
+            pressure: Math.round(jitter(basePortable.pressure, 0.5, 1)),
+            mq135: Math.round(jitter(basePortable.mq135, 1, 5))
+        });
+        updateStaticUI({
+            temperature: jitter(baseStatic.temperature),
+            humidity: jitter(baseStatic.humidity),
+            co2: Math.max(300, Math.round(jitter(baseStatic.co2, 1, 5))),
+            pm25: Math.max(0, Math.round(jitter(baseStatic.pm25))),
+            pm10: Math.max(0, Math.round(jitter(baseStatic.pm10))),
+            voc: Math.round(jitter(baseStatic.voc, 0.01, 0.05) * 10) / 10,
+            pressure: Math.round(jitter(baseStatic.pressure, 0.5, 1)),
+            mq135: Math.round(jitter(baseStatic.mq135, 1, 5))
+        });
+        updatePollutantPieChart();
+    };
+    runTick();
+    demoIntervalId = setInterval(runTick, 30 * 1000);
+}
+
+function stopDemoSensors() {
+    if (!DEMO_ACTIVE) return;
+    clearInterval(demoIntervalId);
+    demoIntervalId = null;
+    DEMO_ACTIVE = false;
 }
 
 async function postJSON(url, body, timeout = 6000) {

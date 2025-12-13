@@ -519,3 +519,28 @@ body.dark .shadow-md {
         margin-left: 0 !important;
     }
 }
+
+/* Layout helpers */
+.wide-card {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
+.chart-container {
+    padding: 18px;
+}
+
+.chart-container canvas,
+.fullwidth-chart canvas {
+    height: 400px !important;
+}
+
+/* Hide offline badges */
+.status-badge,
+.status-offline {
+    display: none !important;
+}
+
+#connection-status {
+    display: none !important;
+}

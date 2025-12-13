@@ -71,52 +71,22 @@ function updateDeviceStatusUI(deviceType, status, timestamp) {
     const deviceView = document.getElementById(`device-${deviceType}`);
     if (!deviceView) return;
 
+    if (status !== 'online') {
+        const existing = deviceView.querySelector('.device-status-container');
+        if (existing) existing.remove();
+        return;
+    }
+
     let statusContainer = deviceView.querySelector('.device-status-container');
     if (!statusContainer) {
-        // Create status container if it doesn't exist
         statusContainer = document.createElement('div');
-        statusContainer.className = 'device-status-container flex items-center gap-4 mb-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg';
+        statusContainer.className = 'device-status-container flex items-center gap-2 mb-3';
         deviceView.insertBefore(statusContainer, deviceView.firstChild);
     }
 
-    // Status badge
-    const statusColors = {
-        online: 'bg-green-500',
-        offline: 'bg-red-500',
-        unknown: 'bg-gray-500'
-    };
-
-    const statusTexts = {
-        online: 'Online',
-        offline: 'Offline',
-        unknown: 'Unknown'
-    };
-
-    // Format timestamp
-    let timeText = 'Never';
-    if (timestamp) {
-        try {
-            const date = new Date(timestamp);
-            timeText = date.toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-        } catch (e) {
-            timeText = 'Invalid timestamp';
-        }
-    }
-
     statusContainer.innerHTML = `
-        <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full ${statusColors[status]} ${status === 'online' ? 'animate-pulse' : ''}"></span>
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">${statusTexts[status]}</span>
-        </div>
-        <div class="text-sm text-slate-600 dark:text-slate-400">
-            Last updated: <span class="font-mono">${timeText}</span>
-        </div>
+        <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
+        <span class="text-sm text-slate-600 dark:text-slate-400">Streaming</span>
     `;
 }
 

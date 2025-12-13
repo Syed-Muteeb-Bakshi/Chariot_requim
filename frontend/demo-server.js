@@ -17,7 +17,7 @@ const url = require('url');
 
 const PORT = process.argv[2] || 8080;
 const FRONTEND_DIR = __dirname;
-const MOCK_DIR = path.join(FRONTEND_DIR, 'example_payloads');
+const MOCK_DIR = path.join(FRONTEND_DIR, 'payloads');
 
 // MIME types
 const MIME_TYPES = {

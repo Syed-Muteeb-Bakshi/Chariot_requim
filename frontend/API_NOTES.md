@@ -79,7 +79,7 @@ const url = `${API_BASE}/api/device_data/${deviceId}`;
 Update `backend/routes/visual_report.py` to support `device_id` parameter and query the database.
 
 ### Option 3: Use Mock Data (Current Fallback)
-The frontend currently falls back to mock data files in `example_payloads/` when the API doesn't return the expected structure.
+The frontend currently falls back to mock data files in `payloads/` when the API doesn't return the expected structure.
 
 ## Testing
 

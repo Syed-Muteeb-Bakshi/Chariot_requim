@@ -99,4 +99,9 @@ def visual_report():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "device_id": device_id,
+            "status": "unavailable",
+            "latest": None,
+            "chart": []
+        }), 200

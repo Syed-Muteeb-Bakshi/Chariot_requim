@@ -25,9 +25,8 @@
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Global config -->
+    <script src="config.js"></script>
 
     <!-- Custom Styles -->
     <link rel="stylesheet" href="style.css">
@@ -154,7 +153,7 @@
                             </div>
                             <div class="flex-1">
                                 <div id="aqi-details" class="text-sm text-slate-600 dark:text-slate-400 space-y-1">
-                                    <div>Location: <span id="current-location">Detecting...</span></div>
+                                    <div>Location: <span id="current-location">Bengaluru</span></div>
                                     <div>PM2.5: <span id="current-pm25">—</span> µg/m³</div>
                                     <div>PM10: <span id="current-pm10">—</span> µg/m³</div>
                                 </div>
@@ -242,10 +241,19 @@
                 <div class="max-w-7xl mx-auto space-y-6">
                     <div
                         class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
-                        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">IoT Sensor Kits</h3>
+                        <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">IoT Sensor Kits</h3>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">Test sensor values refresh every 30s for demos.</p>
+                            </div>
+                            <button id="check-device-btn"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70">
+                                Check Device
+                            </button>
+                        </div>
 
                         <!-- Device Tabs -->
-                        <div class="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
+                        <div class="flex gap-2 mb-3 border-b border-slate-200 dark:border-slate-700">
                             <button
                                 class="device-tab active px-4 py-2 border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 font-medium"
                                 data-device="portable">
@@ -260,6 +268,7 @@
 
                         <!-- Portable Device View -->
                         <div id="device-portable" class="device-view">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Test sensor values • Portable kit</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div
                                     class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
@@ -331,18 +340,11 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Map -->
-                            <div
-                                class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Device Location
-                                </h4>
-                                <div id="portable-map" class="w-full h-64 rounded-lg"></div>
-                            </div>
                         </div>
 
                         <!-- Static Device View -->
                         <div id="device-static" class="device-view hidden">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Test sensor values • Static station</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div
                                     class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
@@ -421,63 +423,13 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Map -->
-                            <div
-                                class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                                <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Device Location
-                                </h4>
-                                <div id="static-map" class="w-full h-64 rounded-lg"></div>
-                            </div>
                         </div>
-                    </div>
 
-                    <!-- Quick AQI Prediction Card -->
-                    <div
-                        class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 rounded-xl shadow-md p-6 border border-blue-100 dark:border-slate-700 mt-6">
-                        <h3
-                            class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                            <span>🔮</span>
-                            <span>Quick AQI Prediction</span>
-                        </h3>
-                        <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Get AI-powered AQI predictions based on current sensor readings
-                        </p>
-                        <div class="flex gap-3 flex-wrap">
-                            <button id="predict-current-device"
-                                class="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
-                                Predict Current Device AQI
-                            </button>
-                            <button onclick="document.querySelector('[data-section=predictive]').click()"
-                                class="px-6 py-2 bg-slate-600 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
-                                View Full Predictions
-                            </button>
-                        </div>
-                        <div id="quick-prediction-result" class="mt-4 hidden">
-                            <div
-                                class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div>
-                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Predicted AQI</div>
-                                        <div id="quick-pred-aqi"
-                                            class="text-2xl font-bold text-slate-900 dark:text-slate-100">—</div>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Category</div>
-                                        <div id="quick-pred-category"
-                                            class="text-sm font-medium text-slate-700 dark:text-slate-300">—</div>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Confidence</div>
-                                        <div id="quick-pred-confidence"
-                                            class="text-sm font-medium text-slate-700 dark:text-slate-300">—</div>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs text-slate-600 dark:text-slate-400 mb-1">Status</div>
-                                        <div id="quick-pred-status"
-                                            class="text-sm font-medium text-slate-700 dark:text-slate-300">—</div>
-                                    </div>
-                                </div>
+                        <div
+                            class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                            <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Pollutant contribution</h4>
+                            <div class="relative" style="height: 320px; width: 100%;">
+                                <canvas id="pollutantPie"></canvas>
                             </div>
                         </div>
                     </div>
@@ -488,7 +440,7 @@
             <section id="section-predictive" class="section-content hidden p-6 bg-slate-50 dark:bg-slate-950">
                 <div class="max-w-7xl mx-auto space-y-6">
                     <div
-                        class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                        class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800 wide-card">
                         <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Predictive AQI
                             Analysis</h3>
                         <div class="flex gap-4 mb-4 flex-wrap items-center">
@@ -526,7 +478,7 @@
 
                     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         <div
-                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800">
+                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800 wide-card fullwidth-chart">
                             <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Device Forecasts &
                                 Short-Term AQI</h3>
                             <div class="flex gap-3 flex-wrap mb-4">

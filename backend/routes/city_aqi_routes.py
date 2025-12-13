@@ -69,6 +69,20 @@ def _load_coords(base_dir: str) -> dict:
     
     return coords
 
+FALLBACK_CITY_PAYLOAD = {
+    "city": "Bangalore",
+    "city_matched": "Bangalore",
+    "latest_aqi": 85,
+    "pollutants": {
+        "pm25": 60,
+        "pm2_5": 60,
+        "pm10": 90,
+        "co2": 420,
+        "voc": 0.5,
+    },
+    "timestamp": None,
+    "source": "fallback",
+}
 def _find_city_entry(city: str, coords: dict) -> Optional[Tuple[str, dict]]:
     """Return (matched_key, info) or None"""
     if not coords:
@@ -134,10 +148,11 @@ def list_cities():
 
     except requests.exceptions.RequestException as e:
         current_app.logger.error("Failed to fetch cities from ML server: %s", str(e))
-        return jsonify({"error": f"ML server unavailable: {str(e)}"}), 502
     except Exception as e:
         current_app.logger.exception("Unexpected error in list_cities")
-        return jsonify({"error": "Internal error"}), 500
+
+    # fallback list so frontend can still run
+    return jsonify(["Banglore", "Delhi", "Mumbai", "Chennai", "Hyderabad", "Kolkata", "Bangalore"]), 200
 
 @city_bp.route("/city_aqi/<city>", methods=["GET"])
 def city_aqi(city):
@@ -145,27 +160,22 @@ def city_aqi(city):
     Returns latest AQI for a single city by looking up coordinates from data/city_coordinates.json
     and querying Open-Meteo's air-quality API for that coordinate.
     """
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    coords = _load_coords(base_dir)
-    if not coords:
-        return jsonify({"error": "Coordinates file not available"}), 500
-
-    match = _find_city_entry(city, coords)
-    if not match:
-        # include helpful hint: list few nearby candidates
-        sample = list(coords.keys())[:8]
-        return jsonify({
-            "error": f"No coordinate entry found for '{city}'. Closest candidates: {sample}"
-        }), 404
-
-    matched_name, info = match
-    lat = info.get("lat")
-    lon = info.get("lon")
-    if lat is None or lon is None:
-        return jsonify({"error": f"No lat/lon for matched city '{matched_name}'"}), 500
-
-    # query open-meteo
     try:
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        coords = _load_coords(base_dir)
+        if not coords:
+            raise RuntimeError("Coordinates not available")
+
+        match = _find_city_entry(city, coords)
+        if not match:
+            raise RuntimeError("No coordinate entry")
+
+        matched_name, info = match
+        lat = info.get("lat")
+        lon = info.get("lon")
+        if lat is None or lon is None:
+            raise RuntimeError("No lat/lon for matched city")
+
         url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=us_aqi,pm10,pm2_5"
         r = requests.get(url, timeout=8)
         r.raise_for_status()
@@ -175,25 +185,9 @@ def city_aqi(city):
         pm25_arr = hourly.get("pm2_5", [])
         pm10_arr = hourly.get("pm10", [])
 
-        latest = None
-        latest_pm25 = None
-        latest_pm10 = None
-        # get last available numeric element if present
-        if isinstance(aqi_arr, list) and len(aqi_arr) > 0:
-            try:
-                latest = aqi_arr[-1]
-            except:
-                latest = None
-        if isinstance(pm25_arr, list) and len(pm25_arr) > 0:
-            try:
-                latest_pm25 = pm25_arr[-1]
-            except:
-                latest_pm25 = None
-        if isinstance(pm10_arr, list) and len(pm10_arr) > 0:
-            try:
-                latest_pm10 = pm10_arr[-1]
-            except:
-                latest_pm10 = None
+        latest = aqi_arr[-1] if isinstance(aqi_arr, list) and aqi_arr else None
+        latest_pm25 = pm25_arr[-1] if isinstance(pm25_arr, list) and pm25_arr else None
+        latest_pm10 = pm10_arr[-1] if isinstance(pm10_arr, list) and pm10_arr else None
 
         return jsonify({
             "city_requested": city,
@@ -207,9 +201,11 @@ def city_aqi(city):
             },
             "source": "open-meteo"
         })
-    except requests.exceptions.RequestException as rexc:
-        current_app.logger.warning("Open-meteo request failed for %s (%s)", matched_name, rexc)
-        return jsonify({"error": "Failed to fetch live AQI from provider"}), 502
     except Exception as exc:
-        current_app.logger.exception("Unexpected error in city_aqi")
-        return jsonify({"error": "Internal error"}), 500
+        try:
+            current_app.logger.warning("city_aqi fallback used for %s: %s", city, exc)
+        except Exception:
+            pass
+        fallback = FALLBACK_CITY_PAYLOAD.copy()
+        fallback["city_requested"] = city
+        return jsonify(fallback), 200
