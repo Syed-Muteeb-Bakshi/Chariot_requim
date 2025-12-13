@@ -66,8 +66,7 @@ async function safeFetchJSON(url, options = {}, fallback = null) {
     }
 }
 
-// Debug: Log API base
-console.log('API Base URL:', API_BASE);
+// Chart.js zoom plugin auto-registers when loaded
 
 // State
 let currentSection = 'dashboard';
@@ -145,9 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     // Load cities immediately and retry if needed
     loadCities().then(() => {
-        console.log('Cities loaded:', cities.length);
         if (cities.length === 0) {
-            console.warn('No cities loaded, retrying...');
             setTimeout(loadCities, 2000);
         }
     });
@@ -453,12 +450,12 @@ function setupEventListeners() {
         await new Promise(res => setTimeout(res, 1200));
         if (!DEMO_ACTIVE) {
             startDemoSensors('bangalore');
-            btn.innerText = 'Device check: Active';
+            btn.innerText = 'Device Status: Active';
             // Show charts when activated
             showSensorCharts();
         } else {
             stopDemoSensors();
-            btn.innerText = 'Check Device';
+            btn.innerText = 'Check Device Status';
             // Hide charts when deactivated
             hideSensorCharts();
         }
@@ -741,7 +738,7 @@ async function loadCurrentLocationAQI() {
         payload = await safeFetchJSON(`${API_BASE}/api/city_aqi/${DEFAULT_CITY}`, {}, null);
     }
     if (!payload) {
-        console.warn('Using Bangalore static fallback for dashboard');
+        // Using fallback data
         payload = BANGALORE_FALLBACK;
     }
 
@@ -797,7 +794,7 @@ async function searchCityAQI() {
         try {
             data = await safeFetchJSON(`./payloads/${cityLower}.json`, {}, null);
         } catch (err) {
-            console.warn('No payload fallback for city', cityLower, err);
+            // No payload fallback available
         }
     }
 
@@ -1485,6 +1482,21 @@ function renderPredictChart(forecast, city) {
             plugins: {
                 legend: {
                     labels: { color: textColor }
+                },
+                zoom: {
+                    zoom: {
+                        wheel: {
+                            enabled: true
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'xy'
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy'
+                    }
                 }
             },
             scales: {
@@ -1586,6 +1598,21 @@ function updateHistoricChartType() {
             plugins: {
                 legend: {
                     labels: { color: textColor }
+                },
+                zoom: {
+                    zoom: {
+                        wheel: {
+                            enabled: true
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'xy'
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy'
+                    }
                 }
             },
             scales: {
