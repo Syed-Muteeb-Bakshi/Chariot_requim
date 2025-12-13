@@ -67,27 +67,11 @@ function calculateDeviceStatus(latest) {
 
 // Update device status UI
 function updateDeviceStatusUI(deviceType, status, timestamp) {
-    // Find or create status indicator in the device view
+    // Hide all status indicators for demo
     const deviceView = document.getElementById(`device-${deviceType}`);
     if (!deviceView) return;
-
-    if (status !== 'online') {
-        const existing = deviceView.querySelector('.device-status-container');
-        if (existing) existing.remove();
-        return;
-    }
-
-    let statusContainer = deviceView.querySelector('.device-status-container');
-    if (!statusContainer) {
-        statusContainer = document.createElement('div');
-        statusContainer.className = 'device-status-container flex items-center gap-2 mb-3';
-        deviceView.insertBefore(statusContainer, deviceView.firstChild);
-    }
-
-    statusContainer.innerHTML = `
-        <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
-        <span class="text-sm text-slate-600 dark:text-slate-400">Streaming</span>
-    `;
+    const existing = deviceView.querySelector('.device-status-container');
+    if (existing) existing.remove();
 }
 
 // Quick AQI Prediction function

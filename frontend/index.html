@@ -248,7 +248,7 @@
                             </div>
                             <button id="check-device-btn"
                                 class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70">
-                                Check Device
+                                Check Device Status
                             </button>
                         </div>
 
@@ -268,7 +268,7 @@
 
                         <!-- Portable Device View -->
                         <div id="device-portable" class="device-view">
-                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Test sensor values • Portable kit</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Portable Kit – Test Sensor Values</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div
                                     class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
@@ -344,7 +344,7 @@
 
                         <!-- Static Device View -->
                         <div id="device-static" class="device-view hidden">
-                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Test sensor values • Static station</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Static Station – Test Sensor Values</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div
                                     class="stat-card bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
@@ -427,7 +427,7 @@
 
                         <div
                             class="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                            <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Pollutant contribution</h4>
+                            <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Pollutant Contribution</h4>
                             <div class="relative" style="height: 320px; width: 100%;">
                                 <canvas id="pollutantPie"></canvas>
                             </div>
@@ -478,7 +478,7 @@
 
                     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         <div
-                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800 wide-card fullwidth-chart">
+                            class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-800 wide-card">
                             <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Device Forecasts &
                                 Short-Term AQI</h3>
                             <div class="flex gap-3 flex-wrap mb-4">
@@ -559,6 +559,20 @@
                             <button id="historic-apply"
                                 class="px-6 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
                                 Apply
+                            </button>
+                        </div>
+                        <div class="flex gap-2 mb-4 flex-wrap">
+                            <button id="historic-toggle-line" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                                Line
+                            </button>
+                            <button id="historic-toggle-bar" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm">
+                                Bar
+                            </button>
+                            <button id="historic-toggle-area" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm">
+                                Area
+                            </button>
+                            <button id="historic-toggle-scatter" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm">
+                                Scatter
                             </button>
                         </div>
                         <div

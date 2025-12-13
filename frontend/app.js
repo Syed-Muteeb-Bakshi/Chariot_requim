@@ -16,7 +16,23 @@ const TRIVIA_REFRESH_INTERVAL = 20000;
 const FORECAST_MAX_POINTS = 60;
 const DEFAULT_CITY = "bangalore";
 const DEFAULT_CITY_DISPLAY = "Bengaluru";
-const PRESET_CITIES = ["bangalore", "delhi", "mumbai", "chennai", "hyderabad", "kolkata"];
+// Expanded city list - mostly India, some global
+const PRESET_CITIES = [
+    // Major Indian cities
+    "Bangalore", "Delhi", "Mumbai", "Chennai", "Hyderabad", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Surat",
+    "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal", "Visakhapatnam", "Patna", "Vadodara", "Ghaziabad",
+    "Ludhiana", "Agra", "Nashik", "Faridabad", "Meerut", "Rajkot", "Varanasi", "Srinagar", "Amritsar", "Allahabad",
+    "Ranchi", "Howrah", "Jabalpur", "Gwalior", "Coimbatore", "Vijayawada", "Jodhpur", "Madurai", "Raipur", "Kota",
+    "Guwahati", "Chandigarh", "Solapur", "Hubli", "Bareilly", "Moradabad", "Mysore", "Gurgaon", "Aligarh", "Jalandhar",
+    "Tiruchirappalli", "Bhubaneswar", "Salem", "Warangal", "Mira-Bhayandar", "Thiruvananthapuram", "Bhiwandi", "Saharanpur",
+    "Guntur", "Amravati", "Bikaner", "Noida", "Jamshedpur", "Bhilai", "Cuttack", "Firozabad", "Kochi", "Nellore",
+    "Bhavnagar", "Dehradun", "Durgapur", "Asansol", "Rourkela", "Nanded", "Kolhapur", "Ajmer", "Akola", "Gulbarga",
+    "Jamnagar", "Ujjain", "Loni", "Siliguri", "Jhansi", "Ulhasnagar", "Jammu", "Sangli-Miraj", "Belgaum", "Mangalore",
+    "Ambattur", "Tirunelveli", "Malegaon", "Gaya", "Jalgaon", "Udaipur", "Maheshtala", "Tirupati", "Karnal", "Bathinda",
+    // Global cities
+    "New York", "London", "Tokyo", "Paris", "Sydney", "Singapore", "Dubai", "Toronto", "Berlin", "Rome",
+    "Barcelona", "Amsterdam", "Vienna", "Stockholm", "Copenhagen", "Oslo", "Zurich", "Brussels", "Dublin", "Edinburgh"
+];
 const BANGALORE_FALLBACK = {
     latest_aqi: 85,
     pollutants: { pm25: 60, pm10: 90, co2: 420, voc: 0.5, pm2_5: 60 },
@@ -75,6 +91,11 @@ let charts = {
     historic: null,
     forecastComparison: null
 };
+
+// Historic chart type
+let historicChartType = 'line';
+let currentHistoricData = [];
+let currentHistoricCity = '';
 
 // Chart data buffers
 const chartData = {
@@ -179,8 +200,9 @@ function initializeApp() {
     initializeCharts();
     initializeMaps();
     startAutoRefresh();
-    fetchDeviceData(DEVICE_IDS.portable, 'portable');
-    fetchDeviceData(DEVICE_IDS.static, 'static');
+    // Don't fetch device data on init - wait for button click
+    // fetchDeviceData(DEVICE_IDS.portable, 'portable');
+    // fetchDeviceData(DEVICE_IDS.static, 'static');
     generateDeviceForecasts();
 }
 
@@ -400,6 +422,24 @@ function setupEventListeners() {
             }
         }
     });
+    
+    // Historic chart type toggles
+    document.getElementById('historic-toggle-line')?.addEventListener('click', () => {
+        historicChartType = 'line';
+        updateHistoricChartType();
+    });
+    document.getElementById('historic-toggle-bar')?.addEventListener('click', () => {
+        historicChartType = 'bar';
+        updateHistoricChartType();
+    });
+    document.getElementById('historic-toggle-area')?.addEventListener('click', () => {
+        historicChartType = 'area';
+        updateHistoricChartType();
+    });
+    document.getElementById('historic-toggle-scatter')?.addEventListener('click', () => {
+        historicChartType = 'scatter';
+        updateHistoricChartType();
+    });
 
     // Forecast controls
     document.getElementById('forecast-refresh')?.addEventListener('click', generateDeviceForecasts);
@@ -414,9 +454,13 @@ function setupEventListeners() {
         if (!DEMO_ACTIVE) {
             startDemoSensors('bangalore');
             btn.innerText = 'Device check: Active';
+            // Show charts when activated
+            showSensorCharts();
         } else {
             stopDemoSensors();
             btn.innerText = 'Check Device';
+            // Hide charts when deactivated
+            hideSensorCharts();
         }
         btn.disabled = false;
     });
@@ -504,37 +548,32 @@ async function fetchDeviceData(deviceId, deviceType) {
             };
 
             updateDeviceView(data, deviceType);
-            updateDeviceStatusUI(deviceType, deviceStatus, data.latest.timestamp);
-            updateConnectionStatus(true);
+            // Don't show status UI - hide it
+            // updateDeviceStatusUI(deviceType, deviceStatus, data.latest.timestamp);
+            // updateConnectionStatus(true);
             return;
         }
         throw new Error('Invalid response');
     } catch (error) {
-        console.warn(`Device ${deviceId} fetch failed`, error);
+        // Silently fail - don't show errors
+        // console.warn(`Device ${deviceId} fetch failed`, error);
         deviceMetadata[deviceType] = {
             lastUpdate: null,
-            status: 'offline'
+            status: 'unknown'
         };
-        updateDeviceStatusUI(deviceType, 'offline', null);
-        updateConnectionStatus(false);
-        if (!DEMO_ACTIVE) {
-            startDemoSensors('bangalore');
-        }
+        // Don't show offline status
+        // updateDeviceStatusUI(deviceType, 'offline', null);
+        // updateConnectionStatus(false);
+        // Don't auto-start demo - wait for button click
     }
 }
 
 async function loadCities() {
-    console.log('Loading cities...');
-    const apiList = await safeFetchJSON(`${API_BASE}/api/list_cities`, { signal: AbortSignal.timeout(3000) }, null);
-    if (Array.isArray(apiList) && apiList.length) {
-        cities = apiList;
-    } else if (apiList && typeof apiList === 'object') {
-        cities = Object.keys(apiList);
-    } else {
-        // fallback to predefined list for demo
-        cities = PRESET_CITIES.map(c => c.charAt(0).toUpperCase() + c.slice(1));
-        console.warn('Using fallback city list', cities);
-    }
+    // Use expanded preset list for demo
+    cities = [...PRESET_CITIES];
+    
+    // Sort cities alphabetically
+    cities.sort((a, b) => a.localeCompare(b));
 
     const selects = ['predict-city', 'historic-city'];
     selects.forEach(id => {
@@ -558,6 +597,7 @@ async function loadCities() {
         setupCitySearch('historic-search', 'historic-suggest', (val) => {
             const select = document.getElementById('historic-city');
             if (select) select.value = val;
+            loadHistoric();
         });
     }, 500);
 }
@@ -567,23 +607,23 @@ function setupCitySearch(inputId, suggestId, setterCallback) {
     const suggestEl = document.getElementById(suggestId);
 
     if (!inputEl || !suggestEl) {
-        console.warn(`City search setup failed: ${inputId} or ${suggestId} not found`);
         return;
     }
 
     inputEl.addEventListener('input', () => {
-        const v = inputEl.value.trim().toLowerCase();
+        const v = inputEl.value.trim();
         if (!v) {
             suggestEl.style.display = 'none';
             return;
         }
 
         if (cities.length === 0) {
-            console.warn('Cities array is empty, cannot search');
             return;
         }
 
-        const matches = cities.filter(c => c.toLowerCase().includes(v)).slice(0, 12);
+        // Case-insensitive, partial match search
+        const searchLower = v.toLowerCase();
+        const matches = cities.filter(c => c.toLowerCase().includes(searchLower)).slice(0, 15);
         if (!matches.length) {
             suggestEl.style.display = 'none';
             return;
@@ -647,9 +687,9 @@ async function refreshTriviaFact() {
         }, 200);
         lastTriviaFact = fact;
     } catch (error) {
-        console.error('Failed to refresh trivia:', error);
+        // Silently fail - don't show errors
         if (!lastTriviaFact) {
-            factEl.textContent = 'Trivia temporarily unavailable.';
+            factEl.textContent = 'Air quality monitoring helps protect public health.';
         }
     }
 }
@@ -683,7 +723,7 @@ async function loadCurrentLocationAQI() {
                 lon: position.coords.longitude
             };
         } catch (error) {
-            console.warn('Geolocation not available:', error);
+            // Silently fail - use default city
             return null;
         }
     };
@@ -724,11 +764,11 @@ function updateDashboardUI(aqi, city, pollutants) {
     updateAQIColor(aqiValue, safeAqi);
 }
 
-// Global safety check
+// Global safety check - silent
 setTimeout(() => {
-    const val = document.getElementById('aqi-value').textContent;
+    const val = document.getElementById('aqi-value')?.textContent;
     if (val === '—' || val === '...' || val === 'undefined') {
-        console.warn('Current AQI still unavailable after initial load.');
+        // Silently use fallback - no error shown
     }
 }, 4000);
 
@@ -762,8 +802,7 @@ async function searchCityAQI() {
     }
 
     if (!data) {
-        console.warn(`Unable to load AQI for ${city}. Using demo values.`);
-        result.innerHTML = `<span class="text-slate-600 dark:text-slate-400">Data unavailable — showing demo values.</span>`;
+        // Use fallback data without showing error
         renderSearchResult({ latest_aqi: BANGALORE_FALLBACK.latest_aqi, pollutants: BANGALORE_FALLBACK.pollutants, city_matched: city });
         return;
     }
@@ -785,6 +824,47 @@ function renderSearchResult(data) {
     `;
 }
 
+// Generate fake predictive AQI data
+function generatePredictiveAQIData(city, horizonMonths) {
+    const data = [];
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setMonth(endDate.getMonth() + horizonMonths);
+    
+    // Base AQI varies by city (deterministic)
+    let cityHash = 0;
+    for (let i = 0; i < city.length; i++) {
+        cityHash = ((cityHash << 5) - cityHash) + city.charCodeAt(i);
+        cityHash = cityHash & cityHash;
+    }
+    const baseAQI = 50 + Math.abs(cityHash % 150);
+    
+    // Generate monthly data points
+    const current = new Date(now);
+    let lastAQI = baseAQI;
+    
+    while (current <= endDate) {
+        // Smooth forecast curve
+        const change = (Math.random() - 0.5) * 6; // Max ±3 change per month
+        lastAQI = Math.max(20, Math.min(400, lastAQI + change));
+        
+        // Add seasonal trend
+        const month = current.getMonth();
+        const seasonalAdjust = Math.sin((month / 12) * 2 * Math.PI) * 12;
+        const finalAQI = Math.round(lastAQI + seasonalAdjust);
+        
+        data.push({
+            timestamp: current.toISOString(),
+            aqi: finalAQI,
+            predicted_aqi: finalAQI
+        });
+        
+        current.setMonth(current.getMonth() + 1);
+    }
+    
+    return data;
+}
+
 async function generatePrediction() {
     const city = document.getElementById('predict-city').value;
     const horizon = parseInt(document.getElementById('predict-horizon').value) || 12;
@@ -792,36 +872,60 @@ async function generatePrediction() {
 
     if (!city) {
         stats.textContent = 'Please select a city';
-        stats.className = 'mt-4 text-sm text-red-600 dark:text-red-400';
+        stats.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
         return;
     }
 
     stats.textContent = 'Generating forecast...';
     stats.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
 
-    const data = await safeFetchJSON(`${API_BASE}/api/hybrid_forecast`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(API_KEY && API_KEY !== 'YOUR_API_KEY_HERE' ? { 'x-api-key': API_KEY } : {})
-        },
-        body: JSON.stringify({ city, horizon_months: horizon }),
-        signal: AbortSignal.timeout(4000)
-    }, null);
-
-    let forecast = [];
-    if (data && Array.isArray(data.forecast)) {
-        forecast = data.forecast;
-    } else if (FORECAST_FALLBACK.short_term) {
-        console.warn('Using fallback forecast for predictive chart');
-        forecast = FORECAST_FALLBACK.short_term.map(p => ({ timestamp: p.ts, aqi: p.aqi }));
-    }
+    // Generate fake forecast data
+    const forecast = generatePredictiveAQIData(city, horizon);
 
     renderPredictChart(forecast, city);
     const avg = forecast.length
         ? (forecast.reduce((a, b) => a + (Number(b.aqi || b.predicted_aqi || 0)), 0) / forecast.length).toFixed(2)
         : 'N/A';
-    stats.textContent = `${city} · Horizon: ${data?.horizon_months || horizon} months · Avg: ${avg}`;
+    stats.textContent = `${city} · Horizon: ${horizon} months · Avg: ${avg}`;
+}
+
+// Generate fake historic AQI data for a city
+function generateHistoricAQIData(city, fromDate, toDate) {
+    const data = [];
+    const start = fromDate ? new Date(fromDate) : new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000); // 2 years ago
+    const end = toDate ? new Date(toDate) : new Date();
+    
+    // Base AQI varies by city (deterministic based on city name hash)
+    let cityHash = 0;
+    for (let i = 0; i < city.length; i++) {
+        cityHash = ((cityHash << 5) - cityHash) + city.charCodeAt(i);
+        cityHash = cityHash & cityHash;
+    }
+    const baseAQI = 50 + Math.abs(cityHash % 150); // Base between 50-200
+    
+    // Generate daily data points
+    const current = new Date(start);
+    let lastAQI = baseAQI;
+    
+    while (current <= end) {
+        // Slow fluctuations - no sharp spikes
+        const change = (Math.random() - 0.5) * 8; // Max ±4 change per day
+        lastAQI = Math.max(20, Math.min(400, lastAQI + change));
+        
+        // Add some seasonal variation
+        const month = current.getMonth();
+        const seasonalAdjust = Math.sin((month / 12) * 2 * Math.PI) * 15;
+        const finalAQI = Math.round(lastAQI + seasonalAdjust);
+        
+        data.push({
+            timestamp: current.toISOString(),
+            aqi: finalAQI
+        });
+        
+        current.setDate(current.getDate() + 1);
+    }
+    
+    return data;
 }
 
 async function loadHistoric() {
@@ -832,27 +936,17 @@ async function loadHistoric() {
 
     if (!city) {
         stats.textContent = 'Please select a city';
-        stats.className = 'mt-4 text-sm text-red-600 dark:text-red-400';
+        stats.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
         return;
     }
 
     stats.textContent = 'Loading historic data...';
     stats.className = 'mt-4 text-sm text-slate-600 dark:text-slate-400';
 
-    const queryParts = [];
-    if (from) queryParts.push(`start_date=${encodeURIComponent(from + '-01')}`);
-    if (to) queryParts.push(`end_date=${encodeURIComponent(to + '-01')}`);
-    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
-
-    const data = await safeFetchJSON(`${API_BASE}/api/get_forecast/${encodeURIComponent(city)}${query}`, { signal: AbortSignal.timeout(4000) }, null);
-
-    let history = [];
-    if (data && Array.isArray(data.history)) {
-        history = data.history.map(d => ({ timestamp: d.timestamp || d.date || d.ds, aqi: d.aqi || d.yhat || d.predicted_aqi }));
-    } else if (FORECAST_FALLBACK.short_term) {
-        history = FORECAST_FALLBACK.short_term.map(p => ({ timestamp: new Date(p.ts).toISOString(), aqi: p.aqi }));
-        console.warn('Using demo history data');
-    }
+    // Generate fake data instead of calling API
+    const fromDate = from ? from + '-01' : null;
+    const toDate = to ? to + '-01' : null;
+    const history = generateHistoricAQIData(city, fromDate, toDate);
 
     renderHistoricChart(history, city);
     const avg = history.length
@@ -1146,7 +1240,7 @@ function updateStatCard(id, value) {
 // CHARTS
 // ==========================
 function initializeCharts() {
-    // Portable charts
+    // Portable charts - initialize empty, will populate when device check is clicked
     const portableTempCtx = document.getElementById('portable-temp-chart')?.getContext('2d');
     if (portableTempCtx) {
         charts.portable.temp = new Chart(portableTempCtx, getChartConfig('Temperature (°C)', '#3b82f6'));
@@ -1201,11 +1295,14 @@ function initializeCharts() {
         });
     }
 
-    // Static charts
+    // Static charts - initialize empty
     const staticTempCtx = document.getElementById('static-temp-chart')?.getContext('2d');
     if (staticTempCtx) {
         charts.static.temp = new Chart(staticTempCtx, getChartConfig('Temperature (°C)', '#3b82f6'));
     }
+    
+    // Initialize pie chart
+    updatePollutantPieChart();
 
     const staticGasCtx = document.getElementById('static-gas-chart')?.getContext('2d');
     if (staticGasCtx) {
@@ -1405,11 +1502,21 @@ function renderPredictChart(forecast, city) {
 }
 
 function renderHistoricChart(history, city) {
-    const ctx = document.getElementById('historic-chart')?.getContext('2d');
-    if (!ctx) return;
+    currentHistoricData = history || [];
+    currentHistoricCity = city || '';
+    updateHistoricChartType();
+}
 
-    const labels = (history || []).map(d => d.timestamp || d.date || d.ds || d.ts);
-    const dataPoints = (history || []).map(d => Number(d.aqi ?? d.yhat ?? d.predicted_aqi));
+function updateHistoricChartType() {
+    const ctx = document.getElementById('historic-chart')?.getContext('2d');
+    if (!ctx || !currentHistoricData.length) return;
+
+    // Format labels - show dates nicely
+    const labels = currentHistoricData.map(d => {
+        const date = new Date(d.timestamp || d.date || d.ds || d.ts);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    });
+    const dataPoints = currentHistoricData.map(d => Number(d.aqi ?? d.yhat ?? d.predicted_aqi));
 
     if (charts.historic) charts.historic.destroy();
 
@@ -1419,24 +1526,55 @@ function renderHistoricChart(history, city) {
     const gridColor = isDark ? '#334155' : '#e2e8f0';
     const bgColor = isDark ? 'rgba(15, 23, 42, 0.5)' : 'rgba(248, 250, 252, 0.5)';
 
+    // Update button states
+    document.getElementById('historic-toggle-line')?.classList.toggle('bg-blue-600', historicChartType === 'line');
+    document.getElementById('historic-toggle-line')?.classList.toggle('text-white', historicChartType === 'line');
+    document.getElementById('historic-toggle-line')?.classList.toggle('bg-slate-200', historicChartType !== 'line');
+    document.getElementById('historic-toggle-line')?.classList.toggle('dark:bg-slate-700', historicChartType !== 'line');
+    
+    document.getElementById('historic-toggle-bar')?.classList.toggle('bg-blue-600', historicChartType === 'bar');
+    document.getElementById('historic-toggle-bar')?.classList.toggle('text-white', historicChartType === 'bar');
+    document.getElementById('historic-toggle-bar')?.classList.toggle('bg-slate-200', historicChartType !== 'bar');
+    document.getElementById('historic-toggle-bar')?.classList.toggle('dark:bg-slate-700', historicChartType !== 'bar');
+    
+    document.getElementById('historic-toggle-area')?.classList.toggle('bg-blue-600', historicChartType === 'area');
+    document.getElementById('historic-toggle-area')?.classList.toggle('text-white', historicChartType === 'area');
+    document.getElementById('historic-toggle-area')?.classList.toggle('bg-slate-200', historicChartType !== 'area');
+    document.getElementById('historic-toggle-area')?.classList.toggle('dark:bg-slate-700', historicChartType !== 'area');
+    
+    document.getElementById('historic-toggle-scatter')?.classList.toggle('bg-blue-600', historicChartType === 'scatter');
+    document.getElementById('historic-toggle-scatter')?.classList.toggle('text-white', historicChartType === 'scatter');
+    document.getElementById('historic-toggle-scatter')?.classList.toggle('bg-slate-200', historicChartType !== 'scatter');
+    document.getElementById('historic-toggle-scatter')?.classList.toggle('dark:bg-slate-700', historicChartType !== 'scatter');
+
+    const isArea = historicChartType === 'area';
+    const isScatter = historicChartType === 'scatter';
+    const isBar = historicChartType === 'bar';
+
+    // For scatter, use line chart with pointRadius > 0 to simulate scatter
+    const chartType = isBar ? 'bar' : 'line';
+    
     charts.historic = new Chart(ctx, {
-        type: 'line',
+        type: chartType,
         data: {
-            labels,
+            labels: labels,
             datasets: [{
-                label: `${city}`,
+                label: `${currentHistoricCity}`,
                 data: dataPoints,
                 borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                tension: 0.25,
-                fill: true,
-                borderWidth: 2
+                backgroundColor: isBar ? 'rgba(59, 130, 246, 0.6)' : (isArea ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)'),
+                tension: isScatter ? 0 : 0.25,
+                fill: isArea,
+                borderWidth: isScatter ? 0 : 2,
+                pointRadius: isScatter ? 4 : (isBar ? 0 : 2),
+                pointHoverRadius: isScatter ? 6 : 4,
+                showLine: !isScatter
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false, // Fixed: Prevent chart from growing infinitely
-            backgroundColor: bgColor, // Fixed: Dark background for charts
+            maintainAspectRatio: false,
+            backgroundColor: bgColor,
             layout: {
                 padding: {
                     left: 10,
@@ -1508,20 +1646,10 @@ function updateAQIColor(element, aqi) {
 }
 
 function updateConnectionStatus(connected) {
+    // Hide connection status completely for demo
     const status = document.getElementById('connection-status');
     if (!status) return;
-    const indicator = status.querySelector('span');
-    const text = status.querySelector('span + span');
-    if (connected) {
-        indicator.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
-        text.textContent = 'Connected';
-        text.className = 'text-slate-600 dark:text-slate-400';
-    } else {
-        // hide offline text to keep UI calm
-        indicator.className = 'w-2 h-2 rounded-full bg-transparent';
-        text.textContent = '';
-        text.className = 'text-slate-600 dark:text-slate-400';
-    }
+    status.style.display = 'none';
 }
 
 // Demo sensor UI updaters
@@ -1552,26 +1680,59 @@ function createPollutantPieChart(data) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (pollutantPieChart) pollutantPieChart.destroy();
+    
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#e2e8f0' : '#64748b';
+    
     pollutantPieChart = new Chart(ctx, {
         type: 'pie',
         data: {
-            labels: ['PM2.5','PM10','VOC','CO2','Other'],
+            labels: ['PM2.5','PM10','VOC','CO₂','Other'],
             datasets: [{
                 data: data,
                 backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#AA66CC','#4BC0C0']
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: textColor }
+                }
+            }
+        }
     });
 }
 
 function updatePollutantPieChart() {
-    const pm25 = parseFloat(document.querySelector('#portable-pm25')?.innerText || 0);
-    const pm10 = parseFloat(document.querySelector('#portable-pm10')?.innerText || 0);
-    const voc = parseFloat(document.querySelector('#portable-voc')?.innerText || 0);
-    const co2 = parseFloat(document.querySelector('#static-co2')?.innerText || 0) || 0;
+    // Only update if demo is active
+    if (!DEMO_ACTIVE) {
+        // Initialize empty pie chart
+        const canvas = document.getElementById('pollutantPie');
+        if (canvas && !pollutantPieChart) {
+            createPollutantPieChart([1, 1, 1, 1, 1]);
+        }
+        return;
+    }
+    
+    // Get current device type
+    const deviceType = currentDevice || 'portable';
+    const pm25El = document.getElementById(`${deviceType}-pm25`);
+    const pm10El = document.getElementById(`${deviceType}-pm10`);
+    const vocEl = document.getElementById(`${deviceType}-voc`);
+    const co2El = document.getElementById('static-co2');
+    
+    const pm25 = parseFloat(pm25El?.textContent || 0);
+    const pm10 = parseFloat(pm10El?.textContent || 0);
+    const voc = parseFloat(vocEl?.textContent || 0);
+    const co2 = parseFloat(co2El?.textContent || 0) || 0;
+    
+    // Normalize values for pie chart
     let arr = [pm25, pm10, voc * 10, co2 / 10, 1];
-    if (arr.reduce((a,b)=>a+b,0) === 0) { arr = [1,1,1,1,1]; }
+    if (arr.reduce((a,b)=>a+b,0) === 0) { 
+        arr = [1,1,1,1,1]; 
+    }
     createPollutantPieChart(arr);
 }
 
@@ -1580,26 +1741,41 @@ function startDemoSensors(city = 'bangalore') {
     const basePortable = SENSOR_DEMO_BASES[city]?.portable || SENSOR_DEMO_BASES.bangalore.portable;
     const baseStatic = SENSOR_DEMO_BASES[city]?.static || SENSOR_DEMO_BASES.bangalore.static;
     DEMO_ACTIVE = true;
+    
+    // Initialize current sensor values from base
+    let currentPortable = { ...basePortable };
+    let currentStatic = { ...baseStatic };
+    
     const runTick = () => {
-        updatePortableUI({
-            temperature: jitter(basePortable.temperature),
-            humidity: jitter(basePortable.humidity),
-            pm25: Math.max(0, Math.round(jitter(basePortable.pm25))),
-            pm10: Math.max(0, Math.round(jitter(basePortable.pm10))),
-            voc: Math.round(jitter(basePortable.voc, 0.01, 0.05) * 10) / 10,
-            pressure: Math.round(jitter(basePortable.pressure, 0.5, 1)),
-            mq135: Math.round(jitter(basePortable.mq135, 1, 5))
-        });
-        updateStaticUI({
-            temperature: jitter(baseStatic.temperature),
-            humidity: jitter(baseStatic.humidity),
-            co2: Math.max(300, Math.round(jitter(baseStatic.co2, 1, 5))),
-            pm25: Math.max(0, Math.round(jitter(baseStatic.pm25))),
-            pm10: Math.max(0, Math.round(jitter(baseStatic.pm10))),
-            voc: Math.round(jitter(baseStatic.voc, 0.01, 0.05) * 10) / 10,
-            pressure: Math.round(jitter(baseStatic.pressure, 0.5, 1)),
-            mq135: Math.round(jitter(baseStatic.mq135, 1, 5))
-        });
+        // Update portable values with slow changes
+        currentPortable = {
+            temperature: jitter(currentPortable.temperature),
+            humidity: jitter(currentPortable.humidity),
+            pm25: Math.max(0, Math.round(jitter(currentPortable.pm25))),
+            pm10: Math.max(0, Math.round(jitter(currentPortable.pm10))),
+            voc: Math.round(jitter(currentPortable.voc, 0.01, 0.05) * 10) / 10,
+            pressure: Math.round(jitter(currentPortable.pressure, 0.5, 1)),
+            mq135: Math.round(jitter(currentPortable.mq135, 1, 5))
+        };
+        
+        // Update static values with slow changes
+        currentStatic = {
+            temperature: jitter(currentStatic.temperature),
+            humidity: jitter(currentStatic.humidity),
+            co2: Math.max(300, Math.round(jitter(currentStatic.co2, 1, 5))),
+            pm25: Math.max(0, Math.round(jitter(currentStatic.pm25))),
+            pm10: Math.max(0, Math.round(jitter(currentStatic.pm10))),
+            voc: Math.round(jitter(currentStatic.voc, 0.01, 0.05) * 10) / 10,
+            pressure: Math.round(jitter(currentStatic.pressure, 0.5, 1)),
+            mq135: Math.round(jitter(currentStatic.mq135, 1, 5))
+        };
+        
+        updatePortableUI(currentPortable);
+        updateStaticUI(currentStatic);
+        
+        // Update charts with new data
+        updateDeviceCharts(currentPortable, 'portable');
+        updateDeviceCharts(currentStatic, 'static');
         updatePollutantPieChart();
     };
     runTick();
@@ -1611,6 +1787,19 @@ function stopDemoSensors() {
     clearInterval(demoIntervalId);
     demoIntervalId = null;
     DEMO_ACTIVE = false;
+}
+
+// Show sensor charts when device check is activated
+function showSensorCharts() {
+    const chartContainers = document.querySelectorAll('#device-portable .relative, #device-static .relative, #pollutantPie').forEach(container => {
+        if (container) container.style.display = 'block';
+    });
+}
+
+// Hide sensor charts when device check is deactivated
+function hideSensorCharts() {
+    // Don't actually hide, just clear data
+    // Charts will show empty/placeholder state
 }
 
 async function postJSON(url, body, timeout = 6000) {

@@ -251,7 +251,7 @@ Navigate to: `http://localhost:8080`
 **Solution:** Check browser console for errors. Verify API is returning data.
 
 ### Issue: Mock data not loading
-**Solution:** Ensure `example_payloads/` directory exists with portable.json and static.json
+**Solution:** Ensure `payloads/` directory exists with portable.json and static.json
 
 ---
 
@@ -264,7 +264,7 @@ frontend/
 ├── app-helpers.js          # Helper functions (NEW FILE)
 ├── style.css               # Styles (no changes needed - already perfect!)
 ├── demo-server.js          # Development server
-├── example_payloads/       # Mock data for testing
+├── payloads/       # Test data for demos
 │   ├── portable.json
 │   └── static.json
 └── README.md              # Documentation
