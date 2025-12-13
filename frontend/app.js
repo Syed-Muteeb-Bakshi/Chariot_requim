@@ -1452,8 +1452,15 @@ function renderPredictChart(forecast, city) {
     const ctx = document.getElementById('predict-chart')?.getContext('2d');
     if (!ctx) return;
 
-    const labels = (forecast || []).map(d => d.timestamp || d.ts || d.date || d.ds);
-    const values = (forecast || []).map(d => Number(d.aqi ?? d.predicted_aqi ?? d.yhat));
+    // Convert to time-based data points
+    const dataPoints = (forecast || []).map(d => {
+        const timestamp = d.timestamp || d.ts || d.date || d.ds;
+        const date = new Date(timestamp);
+        return {
+            x: date.getTime(),
+            y: Number(d.aqi ?? d.predicted_aqi ?? d.yhat)
+        };
+    });
 
     if (charts.predict) charts.predict.destroy();
 
@@ -1465,10 +1472,9 @@ function renderPredictChart(forecast, city) {
     charts.predict = new Chart(ctx, {
         type: 'line',
         data: {
-            labels,
             datasets: [{
                 label: `Forecast — ${city}`,
-                data: values,
+                data: dataPoints,
                 borderColor: '#f59e0b',
                 backgroundColor: 'rgba(245, 158, 11, 0.1)',
                 tension: 0.25,
@@ -1479,34 +1485,73 @@ function renderPredictChart(forecast, city) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
                 legend: {
                     labels: { color: textColor }
                 },
                 zoom: {
+                    limits: {
+                        x: { min: 'original', max: 'original' },
+                        y: { min: 'original', max: 'original' }
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'x',
+                        threshold: 5
+                    },
                     zoom: {
                         wheel: {
-                            enabled: true
+                            enabled: true,
+                            speed: 0.05
                         },
                         pinch: {
                             enabled: true
                         },
-                        mode: 'xy'
-                    },
-                    pan: {
-                        enabled: true,
-                        mode: 'xy'
+                        mode: 'x'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => {
+                            const date = new Date(items[0].parsed.x);
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        }
                     }
                 }
             },
             scales: {
                 x: {
-                    ticks: { color: tickColor },
-                    grid: { color: gridColor }
+                    type: 'time',
+                    time: {
+                        unit: 'day',
+                        tooltipFormat: 'MMM dd, yyyy',
+                        displayFormats: {
+                            day: 'MMM dd'
+                        }
+                    },
+                    ticks: {
+                        color: tickColor,
+                        autoSkip: true,
+                        maxRotation: 0,
+                        maxTicksLimit: 10
+                    },
+                    grid: {
+                        color: gridColor
+                    }
                 },
                 y: {
-                    ticks: { color: tickColor },
-                    grid: { color: gridColor }
+                    beginAtZero: false,
+                    grace: '10%',
+                    ticks: {
+                        color: tickColor
+                    },
+                    grid: {
+                        color: gridColor
+                    }
                 }
             }
         }
@@ -1523,12 +1568,15 @@ function updateHistoricChartType() {
     const ctx = document.getElementById('historic-chart')?.getContext('2d');
     if (!ctx || !currentHistoricData.length) return;
 
-    // Format labels - show dates nicely
-    const labels = currentHistoricData.map(d => {
-        const date = new Date(d.timestamp || d.date || d.ds || d.ts);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    // Convert to time-based data points
+    const dataPoints = currentHistoricData.map(d => {
+        const timestamp = d.timestamp || d.date || d.ds || d.ts;
+        const date = new Date(timestamp);
+        return {
+            x: date.getTime(),
+            y: Number(d.aqi ?? d.yhat ?? d.predicted_aqi)
+        };
     });
-    const dataPoints = currentHistoricData.map(d => Number(d.aqi ?? d.yhat ?? d.predicted_aqi));
 
     if (charts.historic) charts.historic.destroy();
 
@@ -1569,7 +1617,6 @@ function updateHistoricChartType() {
     charts.historic = new Chart(ctx, {
         type: chartType,
         data: {
-            labels: labels,
             datasets: [{
                 label: `${currentHistoricCity}`,
                 data: dataPoints,
@@ -1587,6 +1634,10 @@ function updateHistoricChartType() {
             responsive: true,
             maintainAspectRatio: false,
             backgroundColor: bgColor,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             layout: {
                 padding: {
                     left: 10,
@@ -1600,29 +1651,70 @@ function updateHistoricChartType() {
                     labels: { color: textColor }
                 },
                 zoom: {
+                    limits: {
+                        x: { min: 'original', max: 'original' },
+                        y: { min: 'original', max: 'original' }
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'x',
+                        threshold: 5
+                    },
                     zoom: {
                         wheel: {
-                            enabled: true
+                            enabled: true,
+                            speed: 0.05
                         },
                         pinch: {
                             enabled: true
                         },
-                        mode: 'xy'
-                    },
-                    pan: {
-                        enabled: true,
-                        mode: 'xy'
+                        mode: 'x'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => {
+                            const date = new Date(items[0].parsed.x);
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        }
                     }
                 }
             },
             scales: {
                 x: {
-                    ticks: { color: tickColor, maxRotation: 45, minRotation: 0 },
-                    grid: { color: gridColor, drawBorder: true, borderColor: gridColor }
+                    type: 'time',
+                    time: {
+                        unit: 'day',
+                        tooltipFormat: 'MMM dd, yyyy',
+                        displayFormats: {
+                            day: 'MMM dd',
+                            week: 'MMM dd',
+                            month: 'MMM yyyy'
+                        }
+                    },
+                    ticks: {
+                        color: tickColor,
+                        autoSkip: true,
+                        maxRotation: 0,
+                        maxTicksLimit: 10
+                    },
+                    grid: {
+                        color: gridColor,
+                        drawBorder: true,
+                        borderColor: gridColor
+                    }
                 },
                 y: {
-                    ticks: { color: tickColor },
-                    grid: { color: gridColor, drawBorder: true, borderColor: gridColor }
+                    beginAtZero: false,
+                    grace: '10%',
+                    ticks: {
+                        color: tickColor
+                    },
+                    grid: {
+                        color: gridColor,
+                        drawBorder: true,
+                        borderColor: gridColor
+                    }
                 }
             }
         }

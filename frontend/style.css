@@ -544,3 +544,14 @@ body.dark .shadow-md {
 #connection-status {
     display: none !important;
 }
+
+/* Chart zoom and pan cursor styles */
+#predict-chart,
+#historic-chart {
+    cursor: grab;
+}
+
+#predict-chart:active,
+#historic-chart:active {
+    cursor: grabbing;
+}
